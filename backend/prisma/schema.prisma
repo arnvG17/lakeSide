@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// User accounts synced from Supabase Auth users.
+/// Supabase stores auth data internally — this table stores your app-level users.
+model User {
+  id        String    @id
+  email     String
+  createdAt DateTime  @default(now())
+  
+  rooms        Room[]        @relation("UserRooms")
+  participants Participant[]
+  sessions     SessionLog[]
+  recordings   Recording[]
+}
+
+/// Rooms created by users. A room has an owner.
+model Room {
+  id          String    @id @default(uuid())
+  ownerId     String
+  createdAt   DateTime  @default(now())
+
+  owner       User      @relation("UserRooms", fields: [ownerId], references: [id])
+  participants Participant[]
+}
+
+/// Users that have joined a room (live presence tracking).
+model Participant {
+  id        String   @id @default(uuid())
+  roomId    String
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  room      Room     @relation(fields: [roomId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+/// Socket connections / join logs for auditing and debugging.
+model SessionLog {
+  id            String   @id @default(uuid())
+  userId        String
+  roomId        String?
+  socketId      String?
+  connectedAt   DateTime @default(now())
+  disconnectedAt DateTime?
+
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+/// Login logs for tracking user authentication events.
+model LoginLog {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  loginTimestamp DateTime @map("login_timestamp")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([loginTimestamp(sort: Desc)])
+  @@map("login_logs")
+}
+
+/// Recordings/videos created by users
+model Recording {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  videoUrl  String?  @map("video_url")
+  duration  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("recordings")
+}
