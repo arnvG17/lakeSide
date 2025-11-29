@@ -43,6 +43,7 @@ export default function LoginPage() {
     })
 
     if (error) alert(error.message)
+
   }
 
   return (
