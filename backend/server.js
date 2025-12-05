@@ -3,14 +3,14 @@ const cors = require('cors');
 const { Server } = require('socket.io');
 const http = require('http');
 require('dotenv').config(); // Load env from current dir
-
+const { router: roomRoutes, roomSocketHandler } = require('./routes/room');
 const authRoutes = require('./routes/auth');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:3000", // Allow Next.js frontend
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
         methods: ["GET", "POST"]
     }
 });
@@ -21,6 +21,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/rooms', roomRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -28,15 +29,7 @@ app.get('/', (req, res) => {
 });
 
 // Socket.io Connection
-
-// Socket.io Connection
-io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-    });
-});
+roomSocketHandler(io);
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

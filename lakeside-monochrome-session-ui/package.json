@@ -90,6 +90,7 @@
         "react-wrap-balancer": "^1.1.1",
         "recharts": "^3.0.2",
         "simplex-noise": "^4.0.3",
+        "socket.io-client": "^4.8.1",
         "sonner": "^2.0.6",
         "stripe": "^19.2.0",
         "swiper": "^12.0.3",

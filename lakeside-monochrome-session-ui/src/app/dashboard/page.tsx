@@ -2,7 +2,8 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, LogOut } from 'lucide-react'
-import { logout, getRecordings } from './actions'
+import { logout, getRecordings, getPreviousMeetings } from './actions'
+import { JoinMeetingButton } from '@/components/JoinMeetingButton'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -15,8 +16,10 @@ export default async function DashboardPage() {
         return redirect('/login')
     }
 
-    // Fetch real recordings
+    // Fetch real recordings and meetings
     const { recordings } = await getRecordings()
+    const { meetings } = await getPreviousMeetings()
+    console.log(meetings);
 
     return (
         <div className="min-h-screen w-full bg-black text-white flex flex-col">
@@ -57,42 +60,72 @@ export default async function DashboardPage() {
                             <h2 className="text-4xl font-light tracking-tight mb-2">Dashboard</h2>
                             <p className="text-white/40 font-light">Manage your sessions and recordings</p>
                         </div>
-                        <Link
-                            href="/generate"
-                            className="px-6 py-3 bg-white text-black text-sm font-medium tracking-wide rounded-full hover:bg-white/90 transition-all duration-300 flex items-center gap-2"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Generate New
-                        </Link>
-                    </div>
-
-                    {/* Recordings Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {recordings.map((recording) => (
-                            <div
-                                key={recording.id}
-                                className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                                        <div className="w-3 h-3 rounded-sm bg-white/40" />
-                                    </div>
-                                    <span className="text-xs font-mono text-white/30">{recording.duration}</span>
-                                </div>
-                                <h3 className="text-lg font-light mb-1">{recording.name}</h3>
-                                <p className="text-xs text-white/40">{recording.date}</p>
-                            </div>
-                        ))}
-
-                        {/* Empty State Placeholder */}
-                        <div className="border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[200px] hover:border-white/20 transition-colors">
-                            <p className="text-sm text-white/40 mb-4">Start a new recording session</p>
+                        <div className="flex items-center gap-3">
+                            <JoinMeetingButton />
                             <Link
                                 href="/generate"
-                                className="text-xs font-medium text-white border-b border-white/20 pb-0.5 hover:text-white/80 hover:border-white/40 transition-all"
+                                className="px-6 py-3 bg-white text-black text-sm font-medium tracking-wide rounded-full hover:bg-white/90 transition-all duration-300 flex items-center gap-2"
                             >
-                                Create Session
+                                <Plus className="w-4 h-4" />
+                                Generate New
                             </Link>
+                        </div>
+                    </div>
+
+                    {/* Previous Meetings Section */}
+                    <div>
+                        <h3 className="text-xl font-light tracking-wide mb-6 text-white/80">Previous Meetings</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {meetings.length === 0 ? (
+                                <div className="col-span-full border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[150px]">
+                                    <p className="text-sm text-white/40">No meeting history found</p>
+                                </div>
+                            ) : (
+                                meetings.map((meeting: any) => (
+                                    <div
+                                        key={meeting.id}
+                                        className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] transition-all duration-300"
+                                    >
+                                        <h3 className="text-lg font-light mb-1">{meeting.name || 'Untitled Meeting'}</h3>
+                                        <p className="text-xs text-white/40">
+                                            {meeting.createdAt ? new Date(meeting.createdAt).toLocaleDateString() : 'Unknown Date'}
+                                        </p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Recordings Section */}
+                    <div>
+                        <h3 className="text-xl font-light tracking-wide mb-6 text-white/80">Recordings</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {recordings.map((recording) => (
+                                <div
+                                    key={recording.id}
+                                    className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                            <div className="w-3 h-3 rounded-sm bg-white/40" />
+                                        </div>
+                                        <span className="text-xs font-mono text-white/30">{recording.duration}</span>
+                                    </div>
+                                    <h3 className="text-lg font-light mb-1">{recording.name}</h3>
+                                    <p className="text-xs text-white/40">{recording.date}</p>
+                                </div>
+                            ))}
+
+                            {/* Empty State Placeholder */}
+                            <div className="border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[200px] hover:border-white/20 transition-colors">
+                                <p className="text-sm text-white/40 mb-4">Start a new recording session</p>
+                                <Link
+                                    href="/generate"
+                                    className="text-xs font-medium text-white border-b border-white/20 pb-0.5 hover:text-white/80 hover:border-white/40 transition-all"
+                                >
+                                    Create Session
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>

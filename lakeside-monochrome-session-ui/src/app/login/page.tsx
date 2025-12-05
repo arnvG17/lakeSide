@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { ArrowRight } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 
@@ -9,6 +10,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get("redirect") || "/dashboard"
   const supabase = createClient()
 
   // -------------------------
@@ -27,7 +30,8 @@ export default function LoginPage() {
       alert(error.message)
       setIsLoading(false)
     } else {
-      window.location.href = "/dashboard"
+      // Redirect to original destination or dashboard
+      window.location.href = redirect
     }
   }
 
@@ -38,7 +42,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
       },
     })
 

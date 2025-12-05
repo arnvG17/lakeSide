@@ -18,22 +18,23 @@ const supabase = createClient(
     process.env.SUPABASE_KEY // anon key (public operations)
 );
 
-const supabaseAdmin = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY, // service role (secure operations)
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        }
-    }
-);
+
 
 // ---------------------------------------------
 // LOGIN LOG ENDPOINT
 // ---------------------------------------------
-router.post('/log-login', async (req, res) => {
+const authenticateUser = require('../middleware/authMiddleware');
+
+// ---------------------------------------------
+// LOGIN LOG ENDPOINT
+// ---------------------------------------------
+router.post('/log-login', authenticateUser, async (req, res) => {
     const { userId, email, timestamp } = req.body;
+
+    // Verify that the token user matches the requested user (optional security enhancement)
+    if (req.user.id !== userId) {
+        return res.status(403).json({ error: "Unauthorized: User ID mismatch" });
+    }
 
     console.log(`[LOGIN LOG] User ${email} (${userId}) logged in at ${timestamp}`);
 
@@ -58,26 +59,9 @@ router.post('/log-login', async (req, res) => {
 // SECURE USER SYNC ENDPOINT
 // Verifies JWT → Upserts user → Returns rooms + recordings
 // ---------------------------------------------
-router.post('/sync-user', async (req, res) => {
+router.post('/sync-user', authenticateUser, async (req, res) => {
     try {
-        // 1️⃣ Extract bearer token
-        const authHeader = req.headers.authorization;
-        if (!authHeader) {
-            return res.status(401).json({ error: "Missing Authorization header" });
-        }
-
-        const token = authHeader.split(" ")[1];
-        if (!token) {
-            return res.status(401).json({ error: "Invalid Authorization header format" });
-        }
-
-        // 2️⃣ Verify and extract Supabase user
-        const { data, error } = await supabaseAdmin.auth.getUser(token);
-        if (error || !data.user) {
-            return res.status(401).json({ error: "Invalid or expired token" });
-        }
-
-        const supaUser = data.user; // this is the REAL authenticated user
+        const supaUser = req.user; // Set by middleware
         const userId = supaUser.id;
         const email = supaUser.email;
 

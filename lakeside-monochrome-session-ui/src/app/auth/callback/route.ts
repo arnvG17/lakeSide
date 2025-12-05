@@ -27,7 +27,10 @@ export async function GET(request: Request) {
     try {
         await fetch("http://localhost:3001/api/auth/log-login", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({
                 userId: user.id,
                 email: user.email,

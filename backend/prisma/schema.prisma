@@ -23,6 +23,7 @@ model User {
 /// Rooms created by users. A room has an owner.
 model Room {
   id          String    @id @default(uuid())
+  roomName    String    @default("Untitled Room")
   ownerId     String
   createdAt   DateTime  @default(now())
 

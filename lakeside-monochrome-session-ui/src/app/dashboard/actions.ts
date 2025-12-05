@@ -115,3 +115,26 @@ export async function getLoginHistory() {
 
     return { loginHistory: data || [] }
 }
+
+export async function getPreviousMeetings() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return { meetings: [] }
+    }
+
+    // Fetch rooms created by the user
+    const { data, error } = await supabase
+        .from('Room')
+        .select('*')
+        .eq('ownerId', user.id)
+        .order('createdAt', { ascending: false })
+
+    if (error) {
+        console.error('Error fetching meetings:', error)
+        return { meetings: [] }
+    }
+
+    return { meetings: data || [] }
+}
