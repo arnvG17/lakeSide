@@ -7,6 +7,7 @@ import { io } from "socket.io-client";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
+import { useSessionRecorder } from "@/hooks/useSessionRecorder";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -37,13 +38,15 @@ type Participant = {
     socketId?: string;
     isLocal?: boolean;
     streams?: MediaStream[]; // array of media streams (camera/screen etc.)
+    isMuted?: boolean;
+    isCameraOff?: boolean;
 };
+
 
 export default function SessionRoom({ roomId }: { roomId: string }) {
     // UI states
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
     const [isPanelOpen, setIsPanelOpen] = useState(true);
     const [activeTab, setActiveTab] = useState("whiteboard");
     const [isMobile, setIsMobile] = useState(false);
@@ -65,9 +68,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const socketRef = useRef<any>(null);
     const myUserIdRef = useRef<string | null>(null);
     const localScreenRef = useRef<MediaStream | null>(null); // local screen stream
+    const localMediaStreamRef = useRef<MediaStream | null>(null); // local camera/mic stream
     const localPreviewRef = useRef<HTMLVideoElement | null>(null);
     const peersRef = useRef<Record<string, RTCPeerConnection>>({}); // userId -> pc
     const pendingOfferLock = useRef<Record<string, boolean>>({}); // avoid concurrent offers to same user
+
+    // Recorder Hook
+    const { isRecording, startRecording, stopRecording } = useSessionRecorder({
+        localStream: localMediaStreamRef.current,
+        // Flatten all remote streams from participants
+        remoteStreams: participants
+            .filter(p => !p.isLocal && p.streams)
+            .flatMap(p => p.streams || [])
+    });
 
     // ICE config (add TURN as env for production)
     const ICE_CONFIG = {
@@ -97,9 +110,21 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             const merged = { ...existing, ...p };
 
             // If we already have streams and the update has empty streams (likely just metadata update), keep ours
-            if (existing.streams && existing.streams.length > 0) {
-                if (!p.streams || p.streams.length === 0) {
+            // UNLESS it's a local participant update where we explicitly passed streams
+            if (p.isLocal) {
+                // For local, we always trust the latest passed object because we control it
+                // But we must be careful not to overwrite if we passed partial data
+                if (p.streams !== undefined) {
+                    merged.streams = p.streams;
+                } else {
                     merged.streams = existing.streams;
+                }
+            } else {
+                // For remote, if metadata update (no streams property), keep existing streams
+                if (!p.streams || p.streams.length === 0) {
+                    // If p.streams is explicit empty array, it might mean they stopped sharing?
+                    // But usually metadata events (user-joined) don't carry streams
+                    if (!p.streams) merged.streams = existing.streams;
                 }
             }
 
@@ -153,7 +178,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         }));
     };
 
-    // ------------------------
+    // -------------------------
     // PeerConnection factory
     // -------------------------
     function createPeerConnection(remoteUserId: string) {
@@ -162,7 +187,14 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         const pc = new RTCPeerConnection(ICE_CONFIG);
         peersRef.current[remoteUserId] = pc;
 
-        // add local screen tracks (if present)
+        // add local MEDIA tracks (camera/mic)
+        if (localMediaStreamRef.current) {
+            localMediaStreamRef.current.getTracks().forEach(track => {
+                pc.addTrack(track, localMediaStreamRef.current!);
+            });
+        }
+
+        // add local SCREEN tracks (if present)
         if (localScreenRef.current) {
             localScreenRef.current.getTracks().forEach(track => pc.addTrack(track, localScreenRef.current!));
         }
@@ -201,6 +233,29 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     }
 
     // -------------------------
+    // Capture Local Media (Camera/Mic)
+    // -------------------------
+    async function enableUserMedia() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localMediaStreamRef.current = stream;
+
+            // Initially respect state (if default off)
+            // But usually we start ON. Here we start ON unless set otherwise?
+            // Let's assume start ON.
+
+            // Add to local participant
+            upsertParticipant(prevLocalParticipant());
+
+            return stream;
+        } catch (err) {
+            console.error("Error accessing media devices.", err);
+            toast.error("Could not access camera/microphone");
+            return null;
+        }
+    }
+
+    // -------------------------
     // Start screen share (local user)
     // -------------------------
     async function startScreenShare() {
@@ -218,11 +273,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             const screenStream: MediaStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false });
             localScreenRef.current = screenStream;
 
-            // local preview
-            if (localPreviewRef.current) {
-                localPreviewRef.current.srcObject = screenStream;
-                try { await localPreviewRef.current.play(); } catch (e) { }
-            }
+            // local preview (optional for screen share, generally we just stick it in participant list)
 
             // attach to local participant
             upsertParticipant(prevLocalParticipant());
@@ -287,27 +338,21 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         // remove local screen streams from local participant
         const myId = myUserIdRef.current;
         if (myId) {
-            setParticipants(prev => prev.map(p => p.userId === myId ? { ...p, streams: (p.streams || []).filter(s => s.active) } : p));
+            // Force re-eval of prevLocalParticipant or just filter
+            // We'll reset localScreenRef first
+            localScreenRef.current = null;
+            upsertParticipant(prevLocalParticipant());
         }
 
-        // remove senders corresponding to screen tracks on each PC (best-effort)
-        Object.values(peersRef.current).forEach(pc => {
-            try {
-                pc.getSenders().forEach(sender => {
-                    if (sender.track && sender.track.kind === "video") {
-                        try { pc.removeTrack(sender); } catch (e) { }
-                    }
-                });
-            } catch (e) {
-                console.warn("Error removing sender:", e);
-            }
-        });
+        // Use standard WebRTC removeTrack if possible, or just Renegotiation needed?
+        // Simple way: just stop tracks. The other side receives 'ended' or black frames.
+        // Ideally we negotiate to remove track.
+        // For now, we rely on the track.stop() stopping it.
+
+        localScreenRef.current = null;
 
         // notify server to clear screen sharer
         if (socketRef.current) socketRef.current.emit("stop-screen-share", { roomId });
-
-        localPreviewRef.current && (localPreviewRef.current.srcObject = null);
-        localScreenRef.current = null;
     }
 
     // -------------------------
@@ -315,11 +360,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     function prevLocalParticipant(): Participant {
         const myId = myUserIdRef.current;
+        const streams: MediaStream[] = [];
+        if (localMediaStreamRef.current) streams.push(localMediaStreamRef.current);
+        if (localScreenRef.current) streams.push(localScreenRef.current);
+
         return {
             userId: myId || "unknown",
             email: "", // email may be updated later from existing-participants
             isLocal: true,
-            streams: localScreenRef.current ? [localScreenRef.current] : []
+            streams: streams
         };
     }
 
@@ -339,6 +388,37 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             stopScreenShare();
         } else {
             startScreenShare();
+        }
+    };
+
+    const toggleMic = () => {
+        if (localMediaStreamRef.current) {
+            const audioTrack = localMediaStreamRef.current.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                setIsMuted(!audioTrack.enabled);
+                if (socketRef.current) {
+                    socketRef.current.emit("toggle-mic", { micOn: audioTrack.enabled });
+                }
+            }
+        } else {
+            // Maybe stream not loaded yet?
+            setIsMuted(!isMuted);
+        }
+    };
+
+    const toggleCamera = () => {
+        if (localMediaStreamRef.current) {
+            const videoTrack = localMediaStreamRef.current.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                setIsVideoOff(!videoTrack.enabled);
+                if (socketRef.current) {
+                    socketRef.current.emit("toggle-camera", { cameraOn: videoTrack.enabled });
+                }
+            }
+        } else {
+            setIsVideoOff(!isVideoOff);
         }
     };
 
@@ -554,6 +634,13 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 }
             });
 
+            s.on("user-toggled-mic", ({ userId, micOn }: any) => {
+                setParticipants(prev => prev.map(p => p.userId === userId ? { ...p, isMuted: !micOn } : p));
+            });
+            s.on("user-toggled-camera", ({ userId, cameraOn }: any) => {
+                setParticipants(prev => prev.map(p => p.userId === userId ? { ...p, isCameraOff: !cameraOn } : p));
+            });
+
             // request chat history
             s.emit("request-chat-history", { roomId });
 
@@ -594,6 +681,20 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             }
         }
     }, [screenSharers, participants, featuredTile]);
+
+    // -------------------------
+    // Init Media on Mount
+    // -------------------------
+    useEffect(() => {
+        enableUserMedia();
+        // Cleanup on unmount handled by tracks in refs? 
+        // We should stop them.
+        return () => {
+            if (localMediaStreamRef.current) {
+                localMediaStreamRef.current.getTracks().forEach(t => t.stop());
+            }
+        };
+    }, []);
 
     // -------------------------
     // Detect mobile screen
@@ -700,14 +801,25 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                             <video
                                                 autoPlay
                                                 playsInline
-                                                muted={p.isLocal}
+                                                muted={p.isLocal} // Always mute local to avoid echo
                                                 ref={el => attachStreamToVideo(el, s)}
-                                                className="w-full h-full object-cover"
+                                                className={`w-full h-full object-cover ${p.isCameraOff ? 'hidden' : ''}`}
                                             />
-                                            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
-                                                <span className="text-xs font-medium text-white tracking-wide block truncate">
+                                            {/* Fallback if camera off but stream exists (rare but possible during toggle) */}
+                                            {p.isCameraOff && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
+                                                    <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
+                                                        <span className="text-white/60 text-lg">{p.email?.slice(0, 2).toUpperCase()}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
+                                                <span className="text-xs font-medium text-white tracking-wide block truncate max-w-[80%]">
                                                     {p.email} {idx > 0 ? "(screen)" : ""}
                                                 </span>
+                                                {p.isMuted && <MicOff size={14} className="text-red-500" />}
+                                                {!p.isMuted && <Mic size={14} className="text-white/60" />}
                                             </div>
                                         </div>
                                     );
@@ -733,8 +845,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
-                                        <span className="text-xs font-medium text-white tracking-wide block truncate">{p.email}</span>
+                                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
+                                        <span className="text-xs font-medium text-white tracking-wide block truncate max-w-[80%]">{p.email}</span>
+                                        {p.isMuted ? <MicOff size={14} className="text-red-500" /> : <Mic size={14} className="text-white/60" />}
                                     </div>
                                 </div>
                             );
@@ -875,8 +988,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                         <MonitorUp className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
 
-                    <button onClick={() => setIsRecording(!isRecording)} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        <Circle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <button onClick={isRecording ? stopRecording : startRecording} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-red-500 text-white' : 'bg-white/10 text-white'}`}>
+                        <Circle className={`w-4 h-4 sm:w-5 sm:h-5 ${isRecording ? 'fill-current' : ''}`} />
                     </button>
 
                     <div className="w-px h-6 sm:h-8 bg-white/10 mx-0.5 sm:mx-1" />
