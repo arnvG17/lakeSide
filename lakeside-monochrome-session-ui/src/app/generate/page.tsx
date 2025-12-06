@@ -26,7 +26,7 @@ export default function GenerateRoom() {
         return
       }
 
-      const res = await fetch("http://localhost:3001/api/rooms/create", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"}/api/rooms/create`, {
         method: "POST",
         body: JSON.stringify({ roomName }),
         headers: {

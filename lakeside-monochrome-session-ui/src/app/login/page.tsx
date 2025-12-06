@@ -1,12 +1,13 @@
 "use client"
 
+import { Suspense } from "react"
 import Link from "next/link"
 import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ArrowRight } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -242,5 +243,13 @@ export default function LoginPage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginContent />
+    </Suspense>
   )
 }

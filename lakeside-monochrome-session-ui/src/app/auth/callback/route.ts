@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
     // 2️⃣ Log login event (does NOT need token)
     try {
-        await fetch("http://localhost:3001/api/auth/log-login", {
+        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"}/api/auth/log-login`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
     // 3️⃣ Securely sync user to backend DB (USES TOKEN)
     try {
-        await fetch("http://localhost:3001/api/auth/sync-user", {
+        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"}/api/auth/sync-user`, {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${token}`,
