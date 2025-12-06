@@ -740,8 +740,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             </TabsList>
 
                             <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden">
-                                <div className="h-full rounded-sm border border-white/20 overflow-hidden">
-                                    <Excalidraw theme="light" />
+                                <div className="h-full bg-white rounded-lg overflow-hidden" style={{ minHeight: '500px' }}>
+                                    <Excalidraw
+                                        theme="light"
+                                        initialData={{
+                                            appState: {
+                                                viewBackgroundColor: "#ffffff"
+                                            }
+                                        }}
+                                    />
                                 </div>
                             </TabsContent>
 

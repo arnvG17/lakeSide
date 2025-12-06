@@ -244,93 +244,588 @@ All participants update instantly.
 ✔ Upgradable to Redis with zero code changes in handlers  
 
 ----------------------------------------------------------------
-# ⭐ APPENDED SECTION: HOW LAKESIDE SCREEN SHARING WORKS
+# ⭐ APPENDED SECTION: HOW LAKESIDE SCREEN SHARING WORKS (DETAILED)
 ----------------------------------------------------------------
 
-Screen sharing has **two layers**:
+Screen sharing in Lakeside uses a **two-layer architecture**: the **Signaling Layer** (coordination) and the **Media Layer** (actual video transmission via WebRTC).
 
-----------------------------------------------------------------
-# 🔵 1. SIGNALING LAYER (Socket.IO + RoomStore)
-----------------------------------------------------------------
+---
 
-This is responsible for:
+## 🏗️ HIGH-LEVEL ARCHITECTURE
 
-- Tracking who is sharing  
-- Allowing only one sharer at a time (Meet-style)  
-- Broadcasting start/stop events  
-- Cleaning up when users disconnect  
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SCREEN SHARE SYSTEM                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  Layer 1: SIGNALING (Socket.IO + RoomStore)                 │
+│  ├─ Tracks who is sharing                                    │
+│  ├─ Broadcasts start/stop events                            │
+│  └─ Manages permissions & state                             │
+│                                                               │
+│  Layer 2: MEDIA (WebRTC)                                     │
+│  ├─ Captures screen via getDisplayMedia()                    │
+│  ├─ Creates peer connections                                │
+│  ├─ Sends video tracks to other users                       │
+│  └─ Receives & displays remote screen streams              │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+```
 
-Events include:
+The **Signaling Layer** enables the **Media Layer** by coordinating WHO can share and WHEN.
 
-- start-screen-share  
-- screen-share-started  
-- screen-share-stopped  
-- screen-share-denied  
+---
 
-RoomStore stores:
+## 📁 FILE STRUCTURE
 
-    screenSharer: userId
+### Backend Files
 
-This allows the UI to always know:
+#### 1. `backend/routes/screenShare.js` (66 lines)
+**Purpose**: Socket.IO event handlers for screen sharing signaling
 
-- Who is currently sharing  
-- Whether sharing is allowed  
-- Whether to highlight a tile  
-- Whether to show sharing controls  
+**Key Exports**: 
+- `registerScreenShareHandlers(io, socket)` - Main handler registration function
 
-----------------------------------------------------------------
-# 🔵 2. MEDIA LAYER (WebRTC)
-----------------------------------------------------------------
+**Events Handled**:
+- `start-screen-share` - User wants to start sharing
+- `stop-screen-share` - User wants to stop sharing  
+- `disconnect` - Cleanup when user disconnects
 
-This is implemented later and handles:
+---
 
-- getDisplayMedia()  
-- Sending the screen video track  
-- Replacing webcam video track  
-- Receiving screen video on other clients  
+#### 2. `backend/store/roomStore.js` (96 lines)
+**Purpose**: In-memory state management for rooms
 
-The important thing:
+**Screen Share Methods**:
+- `addScreenSharer(roomId, userId)` - Add user to sharer set
+- `removeScreenSharer(roomId, userId)` - Remove user from sharer set
+- `getScreenSharers(roomId)` - Get array of current sharers
 
-**The signaling layer enables the WebRTC layer.  
-Without signaling, video streams cannot start.**
+**Data Structure**:
+```javascript
+{
+  roomId: {
+    users: {},
+    chat: [],
+    screenSharers: Set<userId>  // Multiple users can share
+  }
+}
+```
 
-----------------------------------------------------------------
-# 🔵 SCREEN SHARE LIFECYCLE
+---
 
-User clicks Share Screen
-        ↓
-Frontend: socket.emit("start-screen-share")
-        ↓
-Server checks if someone is already sharing
-        ↓
-If free → RoomStore.setScreenSharer(userId)
-        ↓
-Server broadcasts: "screen-share-started"
-        ↓
-Frontend updates UI (highlight the sharer)
-        ↓
-Later: WebRTC sends actual screen video
+### Frontend Files
 
-----------------------------------------------------------------
+#### 3. `lakeside-monochrome-session-ui/src/components/pages/Session-ui.tsx` (830 lines)
+**Purpose**: Main session UI component with WebRTC logic
 
-# ⭐ FINAL SUMMARY (AUTH + CHAT + SCREENSHARE)
+**Screen Share Functions**:
+- `startScreenShare()` - Initiate screen sharing
+- `stopScreenShare()` - End screen sharing
+- `handleScreenShare()` - Button click handler
+- `createPeerConnection(userId)` - Create WebRTC peer connection
+- `attachStreamToVideo(el, stream)` - Attach MediaStream to video element
 
-Lakeside now supports:
+**State Variables**:
+- `screenSharers` - Set of user IDs currently sharing
+- `localScreenRef` - Reference to local screen MediaStream
+- `peersRef` - Map of userId → RTCPeerConnection
+- `featuredTile` - Which stream is displayed in main view
 
-✔ Full Supabase OAuth → JWT → Backend Auth  
-✔ Prisma user syncing  
-✔ Room presence  
-✔ Real-time chat with history  
-✔ Single-person screen sharing signaling  
-✔ Refresh-safe persistent room state  
-✔ Scalable architecture ready for Redis + WebRTC  
+---
 
-This architecture is the same used by professional platforms like:
+## 🔧 DETAILED FUNCTION BREAKDOWN
 
-- Google Meet  
-- Zoom Web  
-- Riverside.fm  
-- Discord RTC  
+### Backend Functions
+
+#### `registerScreenShareHandlers(io, socket)`
+**File**: `backend/routes/screenShare.js`
+
+Registers three event listeners on each socket connection.
+
+---
+
+#### Event: `start-screen-share`
+**Triggered by**: User clicks "Share Screen" button  
+**Receives**: `{ roomId }`
+
+**Logic**:
+1. Extract `roomId` from event payload
+2. Call `RoomStore.addScreenSharer(roomId, socket.user.id)`
+3. Broadcast to room: `io.to(roomId).emit("screen-share-started", { userId, email })`
+
+**Result**: All users in room receive notification that sharing started
+
+```javascript
+socket.on("start-screen-share", ({ roomId }) => {
+    RoomStore.addScreenSharer(roomId, socket.user.id);
+    io.to(roomId).emit("screen-share-started", {
+        userId: socket.user.id,
+        email: socket.user.email
+    });
+});
+```
+
+---
+
+#### Event: `stop-screen-share`
+**Triggered by**: User clicks "Stop Share" or closes share  
+**Receives**: `{ roomId }`
+
+**Logic**:
+1. Verify user is actually sharing: `RoomStore.getScreenSharers(roomId).includes(userId)`
+2. If yes, call `RoomStore.removeScreenSharer(roomId, userId)`
+3. Broadcast: `io.to(roomId).emit("screen-share-stopped", { userId })`
+
+**Result**: All users notified that sharing stopped
+
+```javascript
+socket.on("stop-screen-share", ({ roomId }) => {
+    const sharers = RoomStore.getScreenSharers(roomId);
+    if (!sharers.includes(socket.user.id)) return;
+    
+    RoomStore.removeScreenSharer(roomId, socket.user.id);
+    io.to(roomId).emit("screen-share-stopped", { userId: socket.user.id });
+});
+```
+
+---
+
+#### Event: `disconnect`
+**Triggered by**: User closes tab, loses connection, or leaves room  
+
+**Logic**:
+1. Check if disconnecting user was sharing
+2. If yes, clean up: remove from RoomStore
+3. Notify room that sharing stopped
+
+**Result**: Screen share auto-stops when user disconnects
+
+```javascript
+socket.on("disconnect", () => {
+    const sharers = RoomStore.getScreenSharers(roomId);
+    if (sharers.includes(socket.user.id)) {
+        RoomStore.removeScreenSharer(roomId, socket.user.id);
+        io.to(roomId).emit("screen-share-stopped", { userId: socket.user.id });
+    }
+});
+```
+
+---
+
+### Frontend Functions
+
+#### `startScreenShare()`
+**File**: `Session-ui.tsx` (lines 195-260)  
+**Trigger**: User clicks screen share button
+
+**Step-by-Step Flow**:
+
+1. **Check socket connection**
+   ```typescript
+   if (!socketRef.current) {
+       toast.error("Socket not connected");
+       return;
+   }
+   ```
+
+2. **Emit signaling event to backend**
+   ```typescript
+   socketRef.current.emit("start-screen-share", { roomId });
+   ```
+
+3. **Request screen capture from browser**
+   ```typescript
+   const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+       video: true, 
+       audio: false 
+   });
+   localScreenRef.current = screenStream;
+   ```
+
+4. **Attach to local preview video element**
+   ```typescript
+   if (localPreviewRef.current) {
+       localPreviewRef.current.srcObject = screenStream;
+       await localPreviewRef.current.play();
+   }
+   ```
+
+5. **Auto-stop when user stops sharing from browser**
+   ```typescript
+   const vtrack = screenStream.getVideoTracks()[0];
+   vtrack.onended = () => stopScreenShare();
+   ```
+
+6. **Create/update peer connections for each participant**
+   ```typescript
+   for (const p of participants) {
+       if (p.isLocal) continue;
+       
+       const pc = createPeerConnection(p.userId);
+       screenStream.getTracks().forEach(track => 
+           pc.addTrack(track, screenStream)
+       );
+       
+       const offer = await pc.createOffer();
+       await pc.setLocalDescription(offer);
+       
+       socketRef.current.emit("webrtc-offer", {
+           roomId,
+           targetUserId: p.userId,
+           offer: pc.localDescription
+       });
+   }
+   ```
+
+**Error Handling**:
+- If `getDisplayMedia()` fails (user denies permission), emit `stop-screen-share`
+- Prevents orphaned server state
+
+---
+
+#### `stopScreenShare()`
+**File**: `Session-ui.tsx` (lines 265-300)  
+**Trigger**: User clicks "Stop Share" or browser share ends
+
+**Step-by-Step Flow**:
+
+1. **Stop all screen tracks**
+   ```typescript
+   if (localScreenRef.current) {
+       localScreenRef.current.getTracks().forEach(t => t.stop());
+   }
+   ```
+
+2. **Remove screen stream from local participant state**
+   ```typescript
+   setParticipants(prev => prev.map(p => 
+       p.userId === myId 
+           ? { ...p, streams: p.streams?.filter(s => s.active) } 
+           : p
+   ));
+   ```
+
+3. **Remove video senders from all peer connections**
+   ```typescript
+   Object.values(peersRef.current).forEach(pc => {
+       pc.getSenders().forEach(sender => {
+           if (sender.track?.kind === "video") {
+               pc.removeTrack(sender);
+           }
+       });
+   });
+   ```
+
+4. **Notify backend**
+   ```typescript
+   socketRef.current.emit("stop-screen-share", { roomId });
+   ```
+
+5. **Clear local references**
+   ```typescript
+   localPreviewRef.current.srcObject = null;
+   localScreenRef.current = null;
+   ```
+
+---
+
+#### `createPeerConnection(remoteUserId)`
+**File**: `Session-ui.tsx` (lines 148-190)  
+**Purpose**: Factory function for RTCPeerConnection instances
+
+**Logic**:
+
+1. **Return existing connection if already created**
+   ```typescript
+   if (peersRef.current[remoteUserId]) 
+       return peersRef.current[remoteUserId];
+   ```
+
+2. **Create new peer connection**
+   ```typescript
+   const pc = new RTCPeerConnection(ICE_CONFIG);
+   peersRef.current[remoteUserId] = pc;
+   ```
+
+3. **Add local screen tracks (if sharing)**
+   ```typescript
+   if (localScreenRef.current) {
+       localScreenRef.current.getTracks().forEach(track =>
+           pc.addTrack(track, localScreenRef.current!)
+       );
+   }
+   ```
+
+4. **Setup ICE candidate handler**
+   ```typescript
+   pc.onicecandidate = (ev) => {
+       if (ev.candidate && socketRef.current) {
+           socketRef.current.emit("webrtc-ice-candidate", {
+               roomId,
+               targetUserId: remoteUserId,
+               candidate: ev.candidate
+           });
+       }
+   };
+   ```
+
+5. **Setup remote track handler**
+   ```typescript
+   pc.ontrack = (ev) => {
+       const remoteStream = ev.streams[0];
+       addStreamToParticipant(remoteUserId, remoteStream);
+   };
+   ```
+
+6. **Setup connection state cleanup**
+   ```typescript
+   pc.onconnectionstatechange = () => {
+       if (pc.connectionState === "failed" || 
+           pc.connectionState === "closed") {
+           pc.close();
+           delete peersRef.current[remoteUserId];
+       }
+   };
+   ```
+
+---
+
+#### `handleScreenShare()`
+**File**: `Session-ui.tsx` (lines 318-332)  
+**Purpose**: Toggle button handler
+
+**Logic**: Simple toggle based on current state
+```typescript
+const handleScreenShare = () => {
+    if (localScreenRef.current) {
+        stopScreenShare();  // Currently sharing → stop
+    } else {
+        startScreenShare(); // Not sharing → start
+    }
+};
+```
+
+---
+
+## 🔄 COMPLETE DATA FLOW DIAGRAMS
+
+### Flow 1: Starting Screen Share
+
+```
+User A (Sharer)                Frontend A              Backend                 Frontend B              User B (Viewer)
+     |                              |                      |                         |                        |
+     |--[Click Share Screen]------->|                      |                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--start-screen-share->|                         |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--addScreenSharer(A)     |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--screen-share-started-->|                        |
+     |                              |                      |                         |                        |
+     |<--[Browser Share Prompt]-----|                      |                         |                        |
+     |                              |                      |                         |                        |
+     |--[Select Screen & Allow]---->|                      |                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--getDisplayMedia()--->                         |                        |
+     |                              |<--MediaStream---------|                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--createPeerConnection(B)                       |                        |
+     |                              |--addTrack(screen)    |                         |                        |
+     |                              |--createOffer()       |                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--webrtc-offer------->|                         |                        |
+     |                              |                      |--webrtc-offer---------->|                        |
+     |                              |                      |                         |                        |
+     |                              |                      |                         |--setRemoteDescription()|
+     |                              |                      |                         |--createAnswer()        |
+     |                              |                      |                         |                        |
+     |                              |                      |<--webrtc-answer---------|                        |
+     |                              |<--webrtc-answer------|                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--setRemoteDescription()                        |                        |
+     |                              |                      |                         |                        |
+     |                              |<==ICE Candidates===>|<====ICE Candidates=====>|                        |
+     |                              |                      |                         |                        |
+     |                              |                      |                         |<--ontrack(screenStream)|
+     |                              |                      |                         |                        |
+     |                              |                      |                         |--attachStreamToVideo()->|
+     |                              |                      |                         |                        |
+     |                              |                      |                         |                        |--[Sees Screen]
+```
+
+### Flow 2: Stopping Screen Share
+
+```
+User A (Sharer)                Frontend A              Backend                 Frontend B              User B (Viewer)
+     |                              |                      |                         |                        |
+     |--[Click Stop Share]--------->|                      |                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--stopAllTracks()     |                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--removeSenders()     |                         |                        |
+     |                              |                      |                         |                        |
+     |                              |--stop-screen-share-->|                         |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--removeScreenSharer(A)  |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--screen-share-stopped-->|                        |
+     |                              |                      |                         |                        |
+     |                              |                      |                         |--removeStream()        |
+     |                              |                      |                         |                        |
+     |                              |                      |                         |                        |--[Screen Gone]
+```
+
+### Flow 3: Sharer Disconnects Unexpectedly
+
+```
+User A (Sharer)                Frontend A              Backend                 Frontend B              User B (Viewer)
+     |                              |                      |                         |                        |
+     |--[Closes Tab]--------------->|                      |                         |                        |
+     |                              X                      |                         |                        |
+     |                              |                      |<--disconnect event      |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--getScreenSharers()     |                        |
+     |                              |                      |--includes(A)? YES       |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--removeScreenSharer(A)  |                        |
+     |                              |                      |                         |                        |
+     |                              |                      |--screen-share-stopped-->|                        |
+     |                              |                      |                         |                        |
+     |                              |                      |                         |--removeStream()        |
+     |                              |                      |                         |                        |
+     |                              |                      |                         |                        |--[Screen Gone]
+```
+
+---
+
+## 🎯 KEY DESIGN DECISIONS
+
+### 1. Multiple Sharers Allowed
+Unlike Google Meet (single sharer), Lakeside uses a **Set** to track sharers:
+```javascript
+screenSharers: Set<userId>
+```
+This allows multiple participants to share simultaneously.
+
+### 2. Signaling Before Media
+The backend doesn't verify if media actually started - it trusts the signaling:
+- **PRO**: Simpler backend logic
+- **CON**: State can desync if frontend fails after signaling
+
+### 3. Auto-Cleanup on Disconnect
+The `disconnect` event handler ensures:
+- No orphaned sharers in RoomStore
+- Other users notified immediately
+- Clean room state
+
+### 4. WebRTC Renegotiation for Late Joiners
+When a new user joins while someone is sharing:
+```typescript
+s.on("user-joined", (u) => {
+    if (localScreenRef.current) {
+        const pc = createPeerConnection(u.userId);
+        const offer = await pc.createOffer();
+        s.emit("webrtc-offer", { targetUserId: u.userId, offer });
+    }
+});
+```
+This ensures late joiners see the screen share.
+
+---
+
+## 📊 STATE SYNCHRONIZATION
+
+### Backend State (RoomStore)
+```javascript
+{
+  "room-123": {
+    screenSharers: Set { "user-A-id", "user-B-id" }
+  }
+}
+```
+
+### Frontend State (Session-ui.tsx)
+```typescript
+// React state
+screenSharers: Set<string>  // { "user-A-id", "user-B-id" }
+
+// Ref
+localScreenRef.current: MediaStream | null
+
+// Participant state
+participants: [
+  {
+    userId: "user-A-id",
+    streams: [MediaStream],  // Contains screen stream
+    email: "userA@example.com"
+  }
+]
+```
+
+### How They Stay Synced
+
+1. **On join**: `existing-participants` includes `screenSharers` array
+2. **On start**: `screen-share-started` adds to frontend Set
+3. **On stop**: `screen-share-stopped` removes from frontend Set
+4. **On disconnect**: Server auto-removes and broadcasts
+
+---
+
+## 🧪 TESTING CHECKLIST
+
+### Single User
+- [ ] Click "Share Screen" → browser picker appears
+- [ ] Select screen → preview shows locally
+- [ ] Click "Stop Share" → screen stops
+- [ ] Share, then close picker → auto-stops
+
+### Two Users
+- [ ] User A shares → User B sees screen
+- [ ] User A stops → User B screen disappears
+- [ ] User A shares, refreshes page → User B screen stops
+
+### Late Joiners
+- [ ] User A shares
+- [ ] User B joins
+- [ ] User B sees User A's screen immediately
+
+### Multiple Sharers
+- [ ] User A shares
+- [ ] User B also shares
+- [ ] Both screens visible in grid
+- [ ] Each user can stop independently
+
+---
+
+## 🚀 FUTURE ENHANCEMENTS
+
+1. **Audio Sharing**: Add `audio: true` to `getDisplayMedia()`
+2. **Screen + Camera**: Combine screen and webcam streams
+3. **Presenter Mode**: Auto-feature screen sharers
+4. **Recording**: Capture screen shares to recordings
+5. **Quality Control**: Adjust bitrate based on network
+6. **Annotations**: Draw on shared screens
+
+---
+
+## ⭐ SUMMARY
+
+Lakeside screen sharing uses:
+
+✔ **Signaling Layer**: Socket.IO + RoomStore track state  
+✔ **Media Layer**: WebRTC sends actual video  
+✔ **Multiple sharers**: Set-based tracking  
+✔ **Auto-cleanup**: On disconnect  
+✔ **Renegotiation**: For late joiners  
+✔ **Google Meet-style UI**: Featured view + thumbnails  
+
+This architecture matches production systems like:
+- Google Meet
+- Zoom Web
+- Microsoft Teams
+- Discord
 
 ----------------------------------------------------------------
 END OF FILE
+
