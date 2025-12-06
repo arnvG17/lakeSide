@@ -17,14 +17,7 @@ export function useSessionRecorder({ remoteStreams, localStream }: UseSessionRec
 
     const startRecording = useCallback(async () => {
         try {
-            // 1. Capture Video (Screen/Window of the meeting)
-            // We ask the user to select the meeting tab/window to record exactly what they see.
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({
-                video: { width: 1920, height: 1080 },
-                audio: false // We mix audio manually
-            });
-
-            // 2. Setup Audio Mixing
+            // 1. Setup Audio Mixing
             const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
             const ctx = new AudioContextClass();
             audioContextRef.current = ctx;
@@ -48,17 +41,12 @@ export function useSessionRecorder({ remoteStreams, localStream }: UseSessionRec
                 }
             });
 
-            // 3. Combine Video + Mixed Audio
-            const combinedStream = new MediaStream([
-                ...displayStream.getVideoTracks(),
-                ...destination.stream.getAudioTracks()
-            ]);
+            // 2. Start MediaRecorder with Mixed Audio
+            const mixedAudioStream = destination.stream;
+            // Prefer opus for audio-only
+            const options = { mimeType: 'audio/webm;codecs=opus' };
 
-            // 4. Start MediaRecorder
-            const options = { mimeType: 'video/webm;codecs=vp9,opus' };
-            // Fallback for Safari/others if needed, but Chrome/FF support webm
-
-            const recorder = new MediaRecorder(combinedStream, options);
+            const recorder = new MediaRecorder(mixedAudioStream, options);
             mediaRecorderRef.current = recorder;
             chunksRef.current = [];
 
@@ -69,15 +57,15 @@ export function useSessionRecorder({ remoteStreams, localStream }: UseSessionRec
             };
 
             recorder.onstop = () => {
-                // Generate Blob
-                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                // Generate Blob (Audio)
+                const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
                 const url = URL.createObjectURL(blob);
 
                 // Auto-download
                 const a = document.createElement('a');
                 a.style.display = 'none';
                 a.href = url;
-                a.download = `session-recording-${new Date().toISOString()}.webm`;
+                a.download = `session-audio-${new Date().toISOString()}.webm`;
                 document.body.appendChild(a);
                 a.click();
 
@@ -87,8 +75,9 @@ export function useSessionRecorder({ remoteStreams, localStream }: UseSessionRec
                     window.URL.revokeObjectURL(url);
                 }, 100);
 
-                // Stop all tracks in the combined stream (including screen share)
-                combinedStream.getTracks().forEach(track => track.stop());
+                // Stop tracks? No, we don't own the input tracks, only the mix?
+                // The mix destination stream tracks should be stopped.
+                mixedAudioStream.getTracks().forEach(track => track.stop());
 
                 // Close audio context
                 if (audioContextRef.current) {
@@ -96,17 +85,12 @@ export function useSessionRecorder({ remoteStreams, localStream }: UseSessionRec
                 }
 
                 setIsRecording(false);
-                toast.success("Recording saved!");
-            };
-
-            // If user stops sharing screen via browser UI, stop recording
-            displayStream.getVideoTracks()[0].onended = () => {
-                stopRecording();
+                toast.success("Audio recording saved!");
             };
 
             recorder.start(1000); // chunk every 1s
             setIsRecording(true);
-            toast.info("Recording started. Keep this tab active.");
+            toast.info("Audio recording started.");
 
         } catch (err) {
             console.error("Failed to start recording", err);

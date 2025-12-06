@@ -48,7 +48,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isPanelOpen, setIsPanelOpen] = useState(true);
-    const [activeTab, setActiveTab] = useState("whiteboard");
+    const [activeTab, setActiveTab] = useState("chat");
     const [isMobile, setIsMobile] = useState(false);
 
     // participants & chat
@@ -60,6 +60,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // screen share state
     const [screenSharers, setScreenSharers] = useState<Set<string>>(new Set());
     const [isConnected, setIsConnected] = useState(false);
+    const [mediaInitialized, setMediaInitialized] = useState(false);
 
     // featured tile state (Google Meet style)
     const [featuredTile, setFeaturedTile] = useState<{ userId: string; streamId: string } | null>(null);
@@ -237,7 +238,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     async function enableUserMedia() {
         try {
+            console.log("[Session] Requesting user media...");
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            console.log("[Session] User media acquired:", stream.id);
             localMediaStreamRef.current = stream;
 
             // Initially respect state (if default off)
@@ -245,7 +248,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             // Let's assume start ON.
 
             // Add to local participant
-            upsertParticipant(prevLocalParticipant());
+            const p = prevLocalParticipant();
+            console.log("[Session] Upserting local participant after media:", p);
+            upsertParticipant(p);
 
             return stream;
         } catch (err) {
@@ -267,13 +272,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         // ask server if allowed; server may reply 'screen-share-denied'
         socketRef.current.emit("start-screen-share", { roomId });
 
-        // Wait a tick for server to respond with allowed/denied.
-        // We still proceed to open getDisplayMedia; if server denies it will send 'screen-share-denied' - we'll stop.
         try {
+            if (!navigator.mediaDevices.getDisplayMedia) {
+                toast.error("Screen sharing not supported on this device/browser");
+                socketRef.current.emit("stop-screen-share", { roomId });
+                return;
+            }
+
             const screenStream: MediaStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true, audio: false });
             localScreenRef.current = screenStream;
-
-            // local preview (optional for screen share, generally we just stick it in participant list)
 
             // attach to local participant
             upsertParticipant(prevLocalParticipant());
@@ -285,18 +292,14 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             }
 
             // For each existing remote participant -> create PC (if not exists), add tracks, createOffer
-            // Note: createOffer AFTER adding tracks
-            const currentParticipants = participants.slice(); // snapshot
+            const currentParticipants = participants.slice();
             for (const p of currentParticipants) {
                 if (p.isLocal) continue;
                 const targetId = p.userId;
-                // create pc and add tracks
                 const pc = createPeerConnection(targetId);
 
-                // add tracks (idempotent-ish)
                 screenStream.getTracks().forEach(track => pc.addTrack(track, screenStream));
 
-                // avoid concurrent offers to same peer
                 if (pendingOfferLock.current[targetId]) continue;
                 pendingOfferLock.current[targetId] = true;
 
@@ -316,7 +319,6 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             }
         } catch (err) {
             console.error("getDisplayMedia failed or user denied", err);
-            // If user denied, tell server to clear sharer state (server might have already denied)
             socketRef.current.emit("stop-screen-share", { roomId });
         }
     }
@@ -426,6 +428,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // Socket & signaling setup
     // -------------------------
     useEffect(() => {
+        if (!mediaInitialized) return;
+
         let mounted = true;
 
         (async () => {
@@ -440,10 +444,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             // set my user id
             myUserIdRef.current = session.user.id;
 
-            // Initialize media BEFORE connecting socket to ensure tracks are ready for offers/answers
-            await enableUserMedia();
-
-            // add local participant placeholder (now with streams potentially)
+            // Media is already initialized by the other useEffect
+            // We just ensure the placeholder is there with whatever streams we have
             upsertParticipant({
                 userId: session.user.id,
                 email: session.user.email,
@@ -637,17 +639,20 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             s.emit("request-chat-history", { roomId });
 
             // cleanup on unmount
-            return () => {
-                mounted = false;
-                try { s.disconnect(); } catch (_) { }
-                // close all PCs
-                Object.values(peersRef.current).forEach(pc => {
-                    try { pc.close(); } catch (e) { }
-                });
-                peersRef.current = {};
-            };
         })();
-    }, [roomId]); // run once per room
+
+        return () => {
+            mounted = false;
+            if (socketRef.current) {
+                try { socketRef.current.disconnect(); } catch (_) { }
+            }
+            // close all PCs
+            Object.values(peersRef.current).forEach(pc => {
+                try { pc.close(); } catch (e) { }
+            });
+            peersRef.current = {};
+        };
+    }, [roomId, mediaInitialized]); // run once per room after media init
 
     // -------------------------
     // Auto-feature screen shares
@@ -677,7 +682,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     // Init Media on Mount
     // -------------------------
+    useEffect(() => {
+        enableUserMedia().finally(() => setMediaInitialized(true));
 
+        return () => {
+            if (localMediaStreamRef.current) {
+                localMediaStreamRef.current.getTracks().forEach(t => t.stop());
+            }
+        };
+    }, []);
 
     // -------------------------
     // Detect mobile screen
