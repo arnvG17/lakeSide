@@ -52,7 +52,7 @@ const RoomStore = {
         return message;
     },
 
-    // 🔥 NEW: GET CHAT HISTORY
+    // 🔥 NEW GET CHAT HISTORY
     getMessages(roomId) {
         return rooms[roomId] ? rooms[roomId].chat : [];
     },

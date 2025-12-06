@@ -790,7 +790,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             </div>
                         ) : (
                             /* Desktop: Full tabbed interface */
-                            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col h-full min-h-0">
+                            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                                 <TabsList className="bg-black/40 border border-white/10 p-1 flex-shrink-0">
                                     <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
                                     <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
@@ -827,7 +827,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                     </div>
                                 </TabsContent>
 
-                                <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0 h-full">
+                                <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
                                     <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {chatMessages.length === 0 && (
                                             <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
