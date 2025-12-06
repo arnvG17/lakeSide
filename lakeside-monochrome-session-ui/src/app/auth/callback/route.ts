@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const next = searchParams.get("next") ?? "/dashboard";
 
     if (!code) {
-        return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+        return NextResponse.redirect(`${origin}/auth/error`);
     }
 
     // 1️⃣ Exchange code for a Supabase session
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
     if (error || !data?.session) {
         console.error("OAuth exchange error:", error);
-        return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+        return NextResponse.redirect(`${origin}/auth/error`);
     }
 
     const session = data.session;
