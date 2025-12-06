@@ -743,11 +743,11 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 </div>
 
                 {/* Right Panel */}
-                <div className={`transition-all duration-500 border-l border-white/10 ${isPanelOpen ? "w-full md:w-96" : "w-0"} overflow-hidden fixed md:relative inset-0 md:inset-auto z-50 md:z-auto`}>
+                <div className={`transition-all duration-500 border-l border-white/10 ${isPanelOpen ? "w-full md:w-96" : "w-0"} overflow-hidden fixed md:relative inset-0 md:inset-auto z-50 md:z-auto md:h-full`}>
                     <div className="w-full md:w-96 h-full bg-black/90 md:bg-black/50 backdrop-blur-xl flex flex-col p-4 sm:p-6">
                         {/* Mobile: Chat-only view */}
                         {isMobile ? (
-                            <div className="flex flex-col h-full w-full overflow-hidden">
+                            <div className="flex-1 flex flex-col w-full overflow-hidden min-h-0">
                                 {/* Chat Header */}
                                 <div className="flex-none flex items-center justify-between mb-4 pt-2">
                                     <h2 className="text-white text-lg font-semibold">Chat</h2>
@@ -778,7 +778,13 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
                                 {/* Chat Input */}
                                 <form onSubmit={handleSendMessage} className="flex-none mt-2 flex gap-2 w-full pb-2">
-                                    <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} type="text" className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors" placeholder="Type a message..." />
+                                    <input
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        type="text"
+                                        className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-3 text-base md:text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
+                                        placeholder="Type a message..."
+                                    />
                                     <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-bold min-w-[70px]">Send</button>
                                 </form>
                             </div>
@@ -822,7 +828,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                 </TabsContent>
 
                                 <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
-                                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 overscroll-contain min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+                                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {chatMessages.length === 0 && (
                                             <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
                                         )}
