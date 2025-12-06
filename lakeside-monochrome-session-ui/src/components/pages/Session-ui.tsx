@@ -440,12 +440,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             // set my user id
             myUserIdRef.current = session.user.id;
 
-            // add local participant placeholder
+            // Initialize media BEFORE connecting socket to ensure tracks are ready for offers/answers
+            await enableUserMedia();
+
+            // add local participant placeholder (now with streams potentially)
             upsertParticipant({
                 userId: session.user.id,
                 email: session.user.email,
                 isLocal: true,
-                streams: []
+                streams: localMediaStreamRef.current ? [localMediaStreamRef.current] : []
             });
 
             // connect
@@ -505,45 +508,34 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     streams: []
                 });
 
-                // If I am the current sharer, immediately create PC and offer to the new user
-                if (localScreenRef.current) {
-                    console.log(`[Session] I am sharing, initiating offer to new user ${userId}`);
-                    // someone new joined and I am sharing -> create offer for them
-                    (async () => {
-                        const targetId = userId;
-                        const pc = createPeerConnection(targetId);
+                // Always create PC and offer to the new user -> Mesh topology
+                // The new user will answer.
+                console.log(`[Session] Initiating offer to new user ${userId}`);
+                (async () => {
+                    const targetId = userId;
+                    const pc = createPeerConnection(targetId);
 
-                        // add local screen tracks BEFORE offer
-                        // Note: createPeerConnection already adds tracks if localScreenRef is set.
-                        // We double check here just in case, but rely on createPeerConnection for the initial add.
-                        // If we add again, it might be redundant but safe if track ids match.
-                        // Let's log track count.
-                        console.log(`[Session] PC senders count: ${pc.getSenders().length}`);
+                    if (pendingOfferLock.current[targetId]) {
+                        console.warn(`[Session] Offer pending for ${targetId}, skipping`);
+                        return;
+                    }
+                    pendingOfferLock.current[targetId] = true;
 
-                        if (pendingOfferLock.current[targetId]) {
-                            console.warn(`[Session] Offer pending for ${targetId}, skipping`);
-                            return;
-                        }
-                        pendingOfferLock.current[targetId] = true;
-
-                        try {
-                            const offer = await pc.createOffer();
-                            await pc.setLocalDescription(offer);
-                            console.log(`[Session] Sending webrtc-offer to ${targetId}`);
-                            s.emit("webrtc-offer", {
-                                roomId,
-                                targetUserId: targetId,
-                                offer: pc.localDescription
-                            });
-                        } catch (err) {
-                            console.error("Offer to new user failed", err);
-                        } finally {
-                            pendingOfferLock.current[targetId] = false;
-                        }
-                    })();
-                } else {
-                    console.log(`[Session] I am NOT sharing, no offer needed for ${userId}`);
-                }
+                    try {
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        console.log(`[Session] Sending webrtc-offer to ${targetId}`);
+                        s.emit("webrtc-offer", {
+                            roomId,
+                            targetUserId: targetId,
+                            offer: pc.localDescription
+                        });
+                    } catch (err) {
+                        console.error("Offer to new user failed", err);
+                    } finally {
+                        pendingOfferLock.current[targetId] = false;
+                    }
+                })();
             });
 
             // someone left
@@ -685,16 +677,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     // Init Media on Mount
     // -------------------------
-    useEffect(() => {
-        enableUserMedia();
-        // Cleanup on unmount handled by tracks in refs? 
-        // We should stop them.
-        return () => {
-            if (localMediaStreamRef.current) {
-                localMediaStreamRef.current.getTracks().forEach(t => t.stop());
-            }
-        };
-    }, []);
+
 
     // -------------------------
     // Detect mobile screen
@@ -976,11 +959,11 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             {/* Floating control bar */}
             <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-40">
                 <div className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-full px-2 sm:px-4 py-2 sm:py-3 shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex items-center gap-1.5 sm:gap-3">
-                    <button onClick={() => setIsMuted(!isMuted)} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                    <button onClick={toggleMic} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
                         {isMuted ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
                     </button>
 
-                    <button onClick={() => setIsVideoOff(!isVideoOff)} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isVideoOff ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                    <button onClick={toggleCamera} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isVideoOff ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
                         {isVideoOff ? <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Video className="w-4 h-4 sm:w-5 sm:h-5" />}
                     </button>
 
