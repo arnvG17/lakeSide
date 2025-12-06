@@ -624,12 +624,12 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // UI render
     // -------------------------
     return (
-        <div className="h-screen w-full bg-black flex flex-col overflow-hidden">
+        <div className="h-screen w-full bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
             {/* Local preview (hidden small preview) */}
             <video ref={localPreviewRef} autoPlay muted playsInline className="hidden" />
 
-            <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 p-6 flex flex-col gap-4">
+            <div className="flex-1 flex overflow-hidden flex-col md:flex-row">
+                <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4">
                     {/* Main Featured View */}
                     <div className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden">
                         {featuredTile ? (
@@ -670,7 +670,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     </div>
 
                     {/* Thumbnails Strip */}
-                    <div className="h-32 flex gap-2 overflow-x-auto pb-2">
+                    <div className="h-24 sm:h-32 flex gap-2 overflow-x-auto pb-2 -webkit-overflow-scrolling-touch">
                         {participants.map(p => {
                             // Show all streams for each participant
                             if (p.streams && p.streams.length > 0) {
@@ -729,8 +729,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 </div>
 
                 {/* Right Panel */}
-                <div className={`transition-all duration-500 border-l border-white/10 ${isPanelOpen ? "w-96" : "w-0"} overflow-hidden`}>
-                    <div className="w-96 h-full bg-black/50 backdrop-blur-xl flex flex-col p-6">
+                <div className={`transition-all duration-500 border-l border-white/10 ${isPanelOpen ? "w-full md:w-96" : "w-0"} overflow-hidden fixed md:relative inset-0 md:inset-auto z-50 md:z-auto`}>
+                    <div className="w-full md:w-96 h-full bg-black/90 md:bg-black/50 backdrop-blur-xl flex flex-col p-4 sm:p-6">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
                             <TabsList className="bg-black/40 border border-white/10 p-1">
                                 <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
@@ -768,8 +768,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                 </div>
                             </TabsContent>
 
-                            <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden">
-                                <div className="flex-1 overflow-y-auto space-y-4 pr-2" ref={chatScrollRef}>
+                            <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
+                                <div className="flex-1 overflow-y-auto space-y-4 pr-2 overscroll-contain min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
                                     {chatMessages.length === 0 && (
                                         <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
                                     )}
@@ -801,34 +801,34 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             </div>
 
             {/* Floating control bar */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40">
-                <div className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-full px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex items-center gap-3">
-                    <button onClick={() => setIsMuted(!isMuted)} className={`w-12 h-12 rounded-full flex items-center justify-center ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-40">
+                <div className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-full px-2 sm:px-4 py-2 sm:py-3 shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex items-center gap-1.5 sm:gap-3">
+                    <button onClick={() => setIsMuted(!isMuted)} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                        {isMuted ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
                     </button>
 
-                    <button onClick={() => setIsVideoOff(!isVideoOff)} className={`w-12 h-12 rounded-full flex items-center justify-center ${isVideoOff ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                    <button onClick={() => setIsVideoOff(!isVideoOff)} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isVideoOff ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                        {isVideoOff ? <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Video className="w-4 h-4 sm:w-5 sm:h-5" />}
                     </button>
 
-                    <button onClick={handleScreenShare} className={`w-12 h-12 rounded-full flex items-center justify-center ${localScreenRef.current ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        <MonitorUp className="w-5 h-5" />
+                    <button onClick={handleScreenShare} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${localScreenRef.current ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                        <MonitorUp className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
 
-                    <button onClick={() => setIsRecording(!isRecording)} className={`w-12 h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        <Circle className="w-5 h-5" />
+                    <button onClick={() => setIsRecording(!isRecording)} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
+                        <Circle className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
 
-                    <div className="w-px h-8 bg-white/10 mx-1" />
+                    <div className="w-px h-6 sm:h-8 bg-white/10 mx-0.5 sm:mx-1" />
 
-                    <button className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center">
-                        <PhoneOff className="w-5 h-5" />
+                    <button className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white text-black flex items-center justify-center">
+                        <PhoneOff className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
                 </div>
             </div>
 
             {/* Toggle panel */}
-            <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/80 border border-white/20 text-white flex items-center justify-center z-40">
+            <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="absolute top-4 right-4 sm:top-6 sm:right-6 w-10 h-10 rounded-full bg-black/80 border border-white/20 text-white flex items-center justify-center z-[60]">
                 <Menu className="w-5 h-5" />
             </button>
         </div>
