@@ -46,6 +46,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPanelOpen, setIsPanelOpen] = useState(true);
     const [activeTab, setActiveTab] = useState("whiteboard");
+    const [isMobile, setIsMobile] = useState(false);
 
     // participants & chat
     const [participants, setParticipants] = useState<Participant[]>([]);
@@ -595,6 +596,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     }, [screenSharers, participants, featuredTile]);
 
     // -------------------------
+    // Detect mobile screen
+    // -------------------------
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    // -------------------------
     // chat send
     // -------------------------
     const handleSendMessage = (e?: React.FormEvent) => {
@@ -731,44 +745,16 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 {/* Right Panel */}
                 <div className={`transition-all duration-500 border-l border-white/10 ${isPanelOpen ? "w-full md:w-96" : "w-0"} overflow-hidden fixed md:relative inset-0 md:inset-auto z-50 md:z-auto`}>
                     <div className="w-full md:w-96 h-full bg-black/90 md:bg-black/50 backdrop-blur-xl flex flex-col p-4 sm:p-6">
-                        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                            <TabsList className="bg-black/40 border border-white/10 p-1">
-                                <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
-                                <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
-                                <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
-                                <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
-                            </TabsList>
-
-                            <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden">
-                                <div className="h-full bg-white rounded-lg overflow-hidden" style={{ minHeight: '500px' }}>
-                                    <Excalidraw
-                                        theme="light"
-                                        initialData={{
-                                            appState: {
-                                                viewBackgroundColor: "#ffffff"
-                                            }
-                                        }}
-                                    />
+                        {/* Mobile: Chat-only view */}
+                        {isMobile ? (
+                            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                                {/* Chat Header */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-white text-lg font-semibold">Chat</h2>
+                                    <span className="text-white/60 text-sm">{participants.length} participants</span>
                                 </div>
-                            </TabsContent>
 
-                            <TabsContent value="attendance" className="flex-1 mt-6 overflow-auto">
-                                <div className="space-y-4">
-                                    {participants.map((p, idx) => (
-                                        <div key={idx} className="space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-white text-sm font-medium tracking-wide">{p.email}</span>
-                                                <span className="text-white/40 text-xs font-mono">Active</span>
-                                            </div>
-                                            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                                                <div className="h-full bg-white transition-all duration-1000" style={{ width: '100%' }} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </TabsContent>
-
-                            <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
+                                {/* Chat Messages */}
                                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 overscroll-contain min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
                                     {chatMessages.length === 0 && (
                                         <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
@@ -786,16 +772,80 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                     ))}
                                 </div>
 
-                                <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
+                                {/* Chat Input */}
+                                <form onSubmit={handleSendMessage} className="mt-4 flex gap-2 flex-shrink-0">
                                     <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} type="text" className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white" placeholder="Type a message..." />
                                     <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-medium">Send</button>
                                 </form>
-                            </TabsContent>
+                            </div>
+                        ) : (
+                            /* Desktop: Full tabbed interface */
+                            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+                                <TabsList className="bg-black/40 border border-white/10 p-1">
+                                    <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
+                                    <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
+                                    <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
+                                    <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
+                                </TabsList>
 
-                            <TabsContent value="polls" className="flex-1 mt-6">
-                                <div className="text-white/60 text-sm">Polls coming soon…</div>
-                            </TabsContent>
-                        </Tabs>
+                                <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden">
+                                    <div className="h-full bg-white rounded-lg overflow-hidden" style={{ minHeight: '500px' }}>
+                                        <Excalidraw
+                                            theme="light"
+                                            initialData={{
+                                                appState: {
+                                                    viewBackgroundColor: "#ffffff"
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="attendance" className="flex-1 mt-6 overflow-auto">
+                                    <div className="space-y-4">
+                                        {participants.map((p, idx) => (
+                                            <div key={idx} className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-white text-sm font-medium tracking-wide">{p.email}</span>
+                                                    <span className="text-white/40 text-xs font-mono">Active</span>
+                                                </div>
+                                                <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-white transition-all duration-1000" style={{ width: '100%' }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
+                                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 overscroll-contain min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+                                        {chatMessages.length === 0 && (
+                                            <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
+                                        )}
+                                        {chatMessages.map((msg, idx) => (
+                                            <div key={idx} className="flex flex-col gap-1">
+                                                <div className="flex items-baseline justify-between">
+                                                    <span className="text-xs font-bold text-white/90">{msg.email?.split('@')[0]}</span>
+                                                    <span className="text-[10px] text-white/40">
+                                                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words">{msg.text}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <form onSubmit={handleSendMessage} className="mt-4 flex gap-2 flex-shrink-0">
+                                        <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} type="text" className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white" placeholder="Type a message..." />
+                                        <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-medium">Send</button>
+                                    </form>
+                                </TabsContent>
+
+                                <TabsContent value="polls" className="flex-1 mt-6">
+                                    <div className="text-white/60 text-sm">Polls coming soon…</div>
+                                </TabsContent>
+                            </Tabs>
+                        )}
                     </div>
                 </div>
             </div>
