@@ -659,11 +659,27 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     useEffect(() => {
         // Auto-select first screen share as featured
-        if (screenSharers.size > 0 && !featuredTile) {
-            const firstSharer = Array.from(screenSharers)[0];
-            const participant = participants.find(p => p.userId === firstSharer);
-            if (participant && participant.streams && participant.streams.length > 0) {
-                setFeaturedTile({ userId: firstSharer, streamId: participant.streams[0].id });
+        if (!featuredTile) {
+            if (screenSharers.size > 0) {
+                const firstSharer = Array.from(screenSharers)[0];
+                const participant = participants.find(p => p.userId === firstSharer);
+                if (participant?.streams?.length) {
+                    setFeaturedTile({ userId: firstSharer, streamId: participant.streams[0].id });
+                    return;
+                }
+            }
+
+            // Fallback: Default to first remote user with video
+            const remoteWithVideo = participants.find(p => !p.isLocal && p.streams && p.streams.length > 0);
+            if (remoteWithVideo && remoteWithVideo.streams) {
+                setFeaturedTile({ userId: remoteWithVideo.userId, streamId: remoteWithVideo.streams[0].id });
+                return;
+            }
+
+            // Fallback: Local user
+            const local = participants.find(p => p.isLocal && p.streams && p.streams.length > 0);
+            if (local && local.streams) {
+                setFeaturedTile({ userId: local.userId, streamId: local.streams[0].id });
             }
         }
 
@@ -727,6 +743,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         }
         if (el.srcObject !== stream) {
             el.srcObject = stream;
+        }
+        // Ensure playback if paused (safeguard for mobile/lifecycle issues)
+        if (el.paused || el.ended) {
             try { el.play().catch(() => { }); } catch (_) { }
         }
     };
@@ -799,7 +818,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                                 playsInline
                                                 muted={p.isLocal} // Always mute local to avoid echo
                                                 ref={el => attachStreamToVideo(el, s)}
-                                                className={`w-full h-full object-cover ${p.isCameraOff ? 'hidden' : ''}`}
+                                                className={`w-full h-full object-cover`}
                                             />
                                             {/* Fallback if camera off but stream exists (rare but possible during toggle) */}
                                             {p.isCameraOff && (
