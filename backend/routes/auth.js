@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 // ---------------------------------------------
-// Prisma
+// Prisma (Singleton)
 // ---------------------------------------------
-const prisma = new PrismaClient();
+const prisma = require('../db/prisma');
 
 // ---------------------------------------------
 // Supabase Clients

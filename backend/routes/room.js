@@ -1,20 +1,23 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require("@prisma/client");
-const authMiddleware = require("../middleware/authMiddleware");  // <-- IMPORTANT
+const { v4: uuidv4 } = require('uuid');
+const authenticateUser = require('../middleware/authMiddleware');
 const { supabaseAdmin } = require('../middleware/joinRoomAuth');
 const RoomStore = require('../store/roomStore');
 const registerChatHandlers = require('./chat');
 const registerScreenShareHandlers = require('./screenShare');
 const registerSignalingHandlers = require('./signaling');
 
-const prisma = new PrismaClient();
+// ---------------------------------------------
+// Prisma (Singleton)
+// ---------------------------------------------
+const prisma = require('../db/prisma');
 
 // ------------------------------------------------------------
 // POST /api/rooms/create
 // Protected route → requires Supabase JWT
 // ------------------------------------------------------------
-router.post("/create", authMiddleware, async (req, res) => {
+router.post("/create", authenticateUser, async (req, res) => {
     try {
         // req.user is now guaranteed to exist
         const supaUser = req.user;

@@ -6,6 +6,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { io } from "socket.io-client";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
+
+// Dynamically import Excalidraw to avoid SSR issues
+const Excalidraw = dynamic(
+    async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+    { ssr: false }
+);
 
 /**
  * SessionRoom (complete rewrite)
@@ -49,6 +56,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // screen share state
     const [screenSharers, setScreenSharers] = useState<Set<string>>(new Set());
     const [isConnected, setIsConnected] = useState(false);
+
+    // featured tile state (Google Meet style)
+    const [featuredTile, setFeaturedTile] = useState<{ userId: string; streamId: string } | null>(null);
 
     // persistent refs
     const socketRef = useRef<any>(null);
@@ -560,6 +570,31 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     }, [roomId]); // run once per room
 
     // -------------------------
+    // Auto-feature screen shares
+    // -------------------------
+    useEffect(() => {
+        // Auto-select first screen share as featured
+        if (screenSharers.size > 0 && !featuredTile) {
+            const firstSharer = Array.from(screenSharers)[0];
+            const participant = participants.find(p => p.userId === firstSharer);
+            if (participant && participant.streams && participant.streams.length > 0) {
+                setFeaturedTile({ userId: firstSharer, streamId: participant.streams[0].id });
+            }
+        }
+
+        // Clear featured tile if that participant left
+        if (featuredTile) {
+            const stillExists = participants.some(p =>
+                p.userId === featuredTile.userId &&
+                p.streams?.some(s => s.id === featuredTile.streamId)
+            );
+            if (!stillExists) {
+                setFeaturedTile(null);
+            }
+        }
+    }, [screenSharers, participants, featuredTile]);
+
+    // -------------------------
     // chat send
     // -------------------------
     const handleSendMessage = (e?: React.FormEvent) => {
@@ -594,45 +629,98 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             <video ref={localPreviewRef} autoPlay muted playsInline className="hidden" />
 
             <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 p-6 flex items-center justify-center">
-                    <div className="w-full h-full grid grid-cols-3 gap-[1px] max-w-7xl">
-                        {participants.length === 0 && (
-                            <div className="col-span-3 text-center text-white/40">Waiting for participants…</div>
-                        )}
+                <div className="flex-1 p-6 flex flex-col gap-4">
+                    {/* Main Featured View */}
+                    <div className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden">
+                        {featuredTile ? (
+                            (() => {
+                                const participant = participants.find(p => p.userId === featuredTile.userId);
+                                const stream = participant?.streams?.find(s => s.id === featuredTile.streamId);
 
-                        {participants.map(p => {
-                            // If participant has streams render all their streams
-                            if (p.streams && p.streams.length > 0) {
-                                return p.streams.map((s, idx) => (
-                                    <div key={`${p.userId}-stream-${s.id}`} className="relative bg-black border border-white/20 overflow-hidden group">
-                                        <video
-                                            autoPlay
-                                            playsInline
-                                            muted={p.isLocal}
-                                            ref={el => attachStreamToVideo(el, s)}
-                                            className="w-full h-full object-cover"
-                                        />
-                                        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                                            <span className="text-sm font-medium text-white tracking-wide">
-                                                {p.email} {idx > 0 ? "(screen)" : ""}
-                                            </span>
+                                if (participant && stream) {
+                                    return (
+                                        <div className="relative w-full h-full bg-black">
+                                            <video
+                                                autoPlay
+                                                playsInline
+                                                muted={participant.isLocal}
+                                                ref={el => attachStreamToVideo(el, stream)}
+                                                className="w-full h-full object-contain"
+                                            />
+                                            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+                                                <span className="text-lg font-medium text-white tracking-wide">
+                                                    {participant.email}
+                                                    {screenSharers.has(participant.userId) && " (Screen Share)"}
+                                                </span>
+                                            </div>
                                         </div>
+                                    );
+                                }
+                                return (
+                                    <div className="text-white/40 text-center">
+                                        Select a participant to view
                                     </div>
-                                ));
+                                );
+                            })()
+                        ) : (
+                            <div className="text-white/40 text-center">
+                                {participants.length === 0 ? "Waiting for participants…" : "Click a thumbnail below to view"}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Thumbnails Strip */}
+                    <div className="h-32 flex gap-2 overflow-x-auto pb-2">
+                        {participants.map(p => {
+                            // Show all streams for each participant
+                            if (p.streams && p.streams.length > 0) {
+                                return p.streams.map((s, idx) => {
+                                    const isSelected = featuredTile?.userId === p.userId && featuredTile?.streamId === s.id;
+                                    return (
+                                        <div
+                                            key={`${p.userId}-stream-${s.id}`}
+                                            onClick={() => setFeaturedTile({ userId: p.userId, streamId: s.id })}
+                                            className={`relative flex-shrink-0 w-48 h-full bg-black rounded-lg overflow-hidden cursor-pointer transition-all ${isSelected ? 'ring-4 ring-white scale-105' : 'ring-2 ring-white/20 hover:ring-white/60'
+                                                }`}
+                                        >
+                                            <video
+                                                autoPlay
+                                                playsInline
+                                                muted={p.isLocal}
+                                                ref={el => attachStreamToVideo(el, s)}
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                                                <span className="text-xs font-medium text-white tracking-wide block truncate">
+                                                    {p.email} {idx > 0 ? "(screen)" : ""}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                });
                             }
 
-                            // fallback avatar tile
+                            // Fallback avatar tile for participants without streams
                             return (
-                                <div key={p.userId} className="relative bg-black border border-white/20 overflow-hidden group">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 to-black flex items-center justify-center">
-                                        <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                                            <span className="text-4xl font-light text-white/80">
+                                <div
+                                    key={p.userId}
+                                    onClick={() => {
+                                        // If they have no streams, we can't feature them, but we can still select for future
+                                        if (p.streams && p.streams.length > 0) {
+                                            setFeaturedTile({ userId: p.userId, streamId: p.streams[0].id });
+                                        }
+                                    }}
+                                    className="relative flex-shrink-0 w-48 h-full bg-gradient-to-br from-zinc-900 to-black rounded-lg overflow-hidden cursor-pointer ring-2 ring-white/20 hover:ring-white/60 transition-all"
+                                >
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                                            <span className="text-2xl font-light text-white/80">
                                                 {p.email ? p.email.slice(0, 2).toUpperCase() : p.userId.slice(0, 2).toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                                        <span className="text-sm font-medium text-white tracking-wide">{p.email}</span>
+                                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+                                        <span className="text-xs font-medium text-white tracking-wide block truncate">{p.email}</span>
                                     </div>
                                 </div>
                             );
@@ -645,15 +733,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     <div className="w-96 h-full bg-black/50 backdrop-blur-xl flex flex-col p-6">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
                             <TabsList className="bg-black/40 border border-white/10 p-1">
-                                <TabsTrigger value="whiteboard">Whiteboard</TabsTrigger>
-                                <TabsTrigger value="attendance">Attendance</TabsTrigger>
-                                <TabsTrigger value="chat">Chat</TabsTrigger>
-                                <TabsTrigger value="polls">Polls</TabsTrigger>
+                                <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
+                                <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
+                                <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
+                                <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="whiteboard" className="flex-1 mt-6">
-                                <div className="h-full bg-white rounded-sm border border-white/20 p-4 flex items-center justify-center">
-                                    <span className="text-black/40 text-sm font-medium">Canvas Area</span>
+                            <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden">
+                                <div className="h-full rounded-sm border border-white/20 overflow-hidden">
+                                    <Excalidraw theme="light" />
                                 </div>
                             </TabsContent>
 
