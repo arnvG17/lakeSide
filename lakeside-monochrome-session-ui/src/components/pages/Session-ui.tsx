@@ -747,15 +747,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     <div className="w-full md:w-96 h-full bg-black/90 md:bg-black/50 backdrop-blur-xl flex flex-col p-4 sm:p-6">
                         {/* Mobile: Chat-only view */}
                         {isMobile ? (
-                            <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                            <div className="flex flex-col h-full w-full overflow-hidden">
                                 {/* Chat Header */}
-                                <div className="flex items-center justify-between mb-4">
+                                <div className="flex-none flex items-center justify-between mb-4 pt-2">
                                     <h2 className="text-white text-lg font-semibold">Chat</h2>
                                     <span className="text-white/60 text-sm">{participants.length} participants</span>
                                 </div>
 
-                                {/* Chat Messages */}
-                                <div className="flex-1 overflow-y-auto space-y-4 pr-2 overscroll-contain min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+                                {/* Chat Messages - Using standard overflow with touch support */}
+                                <div
+                                    className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-2 pb-4 touch-pan-y"
+                                    ref={chatScrollRef}
+                                    style={{ WebkitOverflowScrolling: 'touch' }}
+                                >
                                     {chatMessages.length === 0 && (
                                         <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
                                     )}
@@ -767,15 +771,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
-                                            <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words">{msg.text}</div>
+                                            <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words text-left">{msg.text}</div>
                                         </div>
                                     ))}
                                 </div>
 
                                 {/* Chat Input */}
-                                <form onSubmit={handleSendMessage} className="mt-4 flex gap-2 flex-shrink-0">
-                                    <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} type="text" className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white" placeholder="Type a message..." />
-                                    <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-medium">Send</button>
+                                <form onSubmit={handleSendMessage} className="flex-none mt-2 flex gap-2 w-full pb-2">
+                                    <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} type="text" className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-3 text-sm text-white focus:outline-none focus:border-white/30 transition-colors" placeholder="Type a message..." />
+                                    <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-bold min-w-[70px]">Send</button>
                                 </form>
                             </div>
                         ) : (
