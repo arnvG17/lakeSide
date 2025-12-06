@@ -152,7 +152,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         }));
     };
 
-    // -------------------------
+    // ------------------------
     // PeerConnection factory
     // -------------------------
     function createPeerConnection(remoteUserId: string) {
