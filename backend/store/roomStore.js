@@ -6,7 +6,8 @@ const RoomStore = {
         if (!rooms[roomId]) {
             rooms[roomId] = {
                 users: {},
-                chat: []
+                chat: [],
+                screenSharer: null,
             };
         }
 
@@ -54,7 +55,41 @@ const RoomStore = {
     // 🔥 NEW: GET CHAT HISTORY
     getMessages(roomId) {
         return rooms[roomId] ? rooms[roomId].chat : [];
-    }
+    },
+
+    // 🔥 NEW: SET SCREEN SHARER (Multiple)
+
+    addScreenSharer(roomId, userId) {
+        if (!rooms[roomId]) return null;
+        if (!rooms[roomId].screenSharers) {
+            rooms[roomId].screenSharers = new Set();
+        }
+        rooms[roomId].screenSharers.add(userId);
+        return Array.from(rooms[roomId].screenSharers);
+    },
+
+    removeScreenSharer(roomId, userId) {
+        if (!rooms[roomId] || !rooms[roomId].screenSharers) return null;
+        rooms[roomId].screenSharers.delete(userId);
+        return Array.from(rooms[roomId].screenSharers);
+    },
+
+    getScreenSharers(roomId) {
+        return rooms[roomId]?.screenSharers ? Array.from(rooms[roomId].screenSharers) : [];
+    },
+
+
+
+
+
+
+
+
+
 };
+
+
+
+
 
 module.exports = RoomStore;

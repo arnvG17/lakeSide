@@ -5,6 +5,8 @@ const authMiddleware = require("../middleware/authMiddleware");  // <-- IMPORTAN
 const { supabaseAdmin } = require('../middleware/joinRoomAuth');
 const RoomStore = require('../store/roomStore');
 const registerChatHandlers = require('./chat');
+const registerScreenShareHandlers = require('./screenShare');
+const registerSignalingHandlers = require('./signaling');
 
 const prisma = new PrismaClient();
 
@@ -73,6 +75,12 @@ const roomSocketHandler = (io) => {
         // Register Chat Handlers
         registerChatHandlers(io, socket);
 
+        // Register Screen Share Handlers
+        registerScreenShareHandlers(io, socket);
+
+        // Register Signaling Handlers
+        registerSignalingHandlers(io, socket);
+
         socket.on('join-room', async ({ roomId, initialState = { micOn: false, cameraOn: false } }) => {
             // Join the socket room
             socket.join(roomId);
@@ -92,7 +100,11 @@ const roomSocketHandler = (io) => {
             const existingParticipants = allParticipants.filter(p => p.userId !== socket.user.id);
 
             // 1. Send existing participants to the NEW user
-            socket.emit('existing-participants', existingParticipants);
+            const currentScreenSharers = RoomStore.getScreenSharers(roomId);
+            socket.emit('existing-participants', {
+                users: existingParticipants,
+                screenSharers: currentScreenSharers
+            });
 
             // 2. Broadcast to everyone ELSE in the room that a new user joined
             socket.to(roomId).emit('user-joined', newUser);
