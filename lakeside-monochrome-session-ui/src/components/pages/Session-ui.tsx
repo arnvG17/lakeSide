@@ -790,15 +790,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             </div>
                         ) : (
                             /* Desktop: Full tabbed interface */
-                            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-                                <TabsList className="bg-black/40 border border-white/10 p-1">
+                            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col h-full min-h-0">
+                                <TabsList className="bg-black/40 border border-white/10 p-1 flex-shrink-0">
                                     <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
                                     <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
                                     <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
                                     <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
                                 </TabsList>
 
-                                <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden">
+                                <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden min-h-0">
                                     <div className="h-full bg-white rounded-lg overflow-hidden" style={{ minHeight: '500px' }}>
                                         <Excalidraw
                                             theme="light"
@@ -811,7 +811,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                     </div>
                                 </TabsContent>
 
-                                <TabsContent value="attendance" className="flex-1 mt-6 overflow-auto">
+                                <TabsContent value="attendance" className="flex-1 mt-6 overflow-auto min-h-0">
                                     <div className="space-y-4">
                                         {participants.map((p, idx) => (
                                             <div key={idx} className="space-y-2">
@@ -827,7 +827,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                     </div>
                                 </TabsContent>
 
-                                <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
+                                <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0 h-full">
                                     <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {chatMessages.length === 0 && (
                                             <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
