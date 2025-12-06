@@ -86,7 +86,7 @@ export default async function DashboardPage() {
                                         key={meeting.id}
                                         className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] transition-all duration-300"
                                     >
-                                        <h3 className="text-lg font-light mb-1">{meeting.name || 'Untitled Meeting'}</h3>
+                                        <h3 className="text-lg font-light mb-1">{meeting.roomName || 'Untitled Meeting'}</h3>
                                         <p className="text-xs text-white/40">
                                             {meeting.createdAt ? new Date(meeting.createdAt).toLocaleDateString() : 'Unknown Date'}
                                         </p>
