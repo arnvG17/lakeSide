@@ -52,10 +52,11 @@ class FasterWhisperASR:
         max_amp = np.max(np.abs(last_second.astype(np.float32) / 32768.0))
         
         if max_amp < 0.01:
-            logger.info(f"Silence detected ({max_amp:.4f}), skipping inference.")
+            # DEBUG level to avoid spamming the console
+            logger.debug(f"Silence ({max_amp:.4f})")
             return ""
 
-        logger.info(f"Audio detected ({max_amp:.4f}), transcribing...")
+        # logger.info(f"Processing audio chunk (Amp: {max_amp:.4f})")
 
         # Convert to float32 only when needed for model
         audio_float32 = self.audio_buffer.astype(np.float32) / 32768.0

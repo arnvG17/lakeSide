@@ -118,11 +118,20 @@ export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrende
                 if (ws.readyState === WebSocket.OPEN) {
                     const inputData = e.inputBuffer.getChannelData(0);
 
-                    // Downsample if needed (e.g. 48k -> 16k)
-                    const downsampled = downsampleBuffer(inputData, audioContext.sampleRate, 16000);
+                    // Frontend VAD: Check amplitude before spending bandwidth
+                    let sumSquares = 0.0;
+                    for (const sample of inputData) {
+                        sumSquares += sample * sample;
+                    }
+                    const amplitude = Math.sqrt(sumSquares / inputData.length);
 
-                    const pcmData = convertFloatTo16BitPCM(downsampled);
-                    ws.send(pcmData);
+                    // Threshold 0.01 (adjustable)
+                    if (amplitude > 0.01) {
+                        // Downsample if needed (e.g. 48k -> 16k)
+                        const downsampled = downsampleBuffer(inputData, audioContext.sampleRate, 16000);
+                        const pcmData = convertFloatTo16BitPCM(downsampled);
+                        ws.send(pcmData);
+                    }
                 }
             };
 
