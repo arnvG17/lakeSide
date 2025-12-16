@@ -54,15 +54,27 @@ class FasterWhisperASR:
             # Wait until we have at least 1 second of audio
             return
             
+        if len(self.audio_buffer) > 0:
+            max_amp = np.max(np.abs(self.audio_buffer))
+            if max_amp < 0.01:
+                logger.info(f"Audio amplitude too low: {max_amp:.4f} (Silence?)")
+            else:
+                logger.info(f"Audio amplitude OK: {max_amp:.4f}")
+
+        # SLIDING WINDOW: Keep only the last 30 seconds to prevent OOM
+        # 16000 samples * 30 seconds = 480000 samples
+        MAX_SAMPLES = 16000 * 30
+        if len(self.audio_buffer) > MAX_SAMPLES:
+            self.audio_buffer = self.audio_buffer[-MAX_SAMPLES:]
+
         # Run transcription on the current buffer
-        # beam_size=5 is good for accuracy, but slower. 1 is faster.
+        # beam_size=1 is much faster and uses less memory (Greedy Decoding)
         segments, info = self.model.transcribe(
             self.audio_buffer, 
-            beam_size=5, 
+            beam_size=1, 
             language="en", 
             condition_on_previous_text=False,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500)
+            vad_filter=False
         )
         
         # Collect text from segments
