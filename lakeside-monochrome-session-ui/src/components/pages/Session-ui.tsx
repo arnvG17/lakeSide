@@ -819,6 +819,11 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             </button>
                         </div>
 
+                        {isTranscribing && !transcript && (
+                            <p className="text-white/40 italic text-sm animate-pulse">
+                                Waiting for voice...
+                            </p>
+                        )}
                         {transcript && (
                             <p className="text-white/90 text-lg leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-2">
                                 "{transcript}"

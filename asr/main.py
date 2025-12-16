@@ -46,6 +46,9 @@ async def websocket_endpoint(websocket: WebSocket):
             transcript = await asyncio.to_thread(asr_model.transcribe)
             
             if transcript:
+                # LOGGING: Print the actual text so user can verify it in console
+                logger.info(f"Transcript: {transcript}")
+                
                 response = {
                     "type": "partial", # or final logic
                     "text": transcript

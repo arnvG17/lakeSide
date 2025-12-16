@@ -12,16 +12,16 @@ class FasterWhisperASR:
         Initialize the Faster-Whisper model.
         """
         logger.info(f"Loading Faster-Whisper model: {model_size} on {device} with {compute_type}...")
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        # OPTIMIZATION: cpu_threads=1 reduces memory overhead significantly
+        self.model = WhisperModel(model_size, device=device, compute_type=compute_type, cpu_threads=1)
         logger.info("Model loaded successfully.")
         
         # Buffer to hold audio data
-        # We expect 16kHz mono audio. 
-        self.audio_buffer = np.array([], dtype=np.float32)
+        # OPTIMIZATION: Store as int16 (2 bytes) instead of float32 (4 bytes) to save 50% RAM
+        self.audio_buffer = np.array([], dtype=np.int16)
         
         # Configuration for VAD and transcription
         self.sample_rate = 16000
-        self.vad_threshold = 0.5 # Simple energy-based or we rely on Whisper's VAD
         
     def process_audio_chunk(self, audio_chunk_bytes: bytes):
         """
@@ -30,54 +30,47 @@ class FasterWhisperASR:
         # Convert bytes to numpy array (int16)
         audio_int16 = np.frombuffer(audio_chunk_bytes, dtype=np.int16)
         
-        # Convert to float32 and normalize to [-1, 1]
-        audio_float32 = audio_int16.astype(np.float32) / 32768.0
-        
-        # Append to buffer
-        self.audio_buffer = np.concatenate((self.audio_buffer, audio_float32))
+        # Append directly as int16
+        self.audio_buffer = np.concatenate((self.audio_buffer, audio_int16))
         
     def transcribe(self):
         """
-        Transcribe the current buffer and return segments.
-        This is a generator that yields partial/final results.
-        For simplicity in this streaming demo, we will transcribe the whole buffer 
-        each time sufficient data is available, or use a sliding window.
-        
-        Real-time streaming with Whisper is tricky because it expects a full context.
-        A common simple strategy:
-        1. Accumulate audio.
-        2. Transcribe the last N seconds (plus context).
-        3. Diff with previous result (optional) or just send latest.
+        Transcribe the current buffer.
         """
-        
-        if len(self.audio_buffer) < self.sample_rate * 1.0: 
-            # Wait until we have at least 1 second of audio
-            return
-            
-        if len(self.audio_buffer) > 0:
-            max_amp = np.max(np.abs(self.audio_buffer))
-            if max_amp < 0.01:
-                logger.info(f"Audio amplitude too low: {max_amp:.4f} (Silence?)")
-            else:
-                logger.info(f"Audio amplitude OK: {max_amp:.4f}")
-
-        # SLIDING WINDOW: Keep only the last 30 seconds to prevent OOM
-        # 16000 samples * 30 seconds = 480000 samples
-        MAX_SAMPLES = 16000 * 30
+        # SLIDING WINDOW: Keep only last 30s (16k * 30 = 480k samples)
+        MAX_SAMPLES = 480000
         if len(self.audio_buffer) > MAX_SAMPLES:
             self.audio_buffer = self.audio_buffer[-MAX_SAMPLES:]
 
-        # Run transcription on the current buffer
-        # beam_size=1 is much faster and uses less memory (Greedy Decoding)
+        if len(self.audio_buffer) < self.sample_rate * 1.0: 
+            return
+
+        # OPTIMIZATION: Energy-based VAD (Skip inference if silent)
+        # Check last 1 second amplitude
+        last_second = self.audio_buffer[-16000:]
+        # Convert to float just for check (cheap)
+        max_amp = np.max(np.abs(last_second.astype(np.float32) / 32768.0))
+        
+        if max_amp < 0.01:
+            logger.info(f"Silence detected ({max_amp:.4f}), skipping inference.")
+            return ""
+
+        logger.info(f"Audio detected ({max_amp:.4f}), transcribing...")
+
+        # Convert to float32 only when needed for model
+        audio_float32 = self.audio_buffer.astype(np.float32) / 32768.0
+
+        # Run transcription
+        # beam_size=1 (Greedy), best_of=1 (No candidates) -> Fastest/Lightest
         segments, info = self.model.transcribe(
-            self.audio_buffer, 
+            audio_float32, 
             beam_size=1, 
+            best_of=1,
             language="en", 
             condition_on_previous_text=False,
             vad_filter=False
         )
         
-        # Collect text from segments
         full_text = ""
         for segment in segments:
             full_text += segment.text + " "
@@ -85,7 +78,4 @@ class FasterWhisperASR:
         return full_text.strip()
         
     def clear_buffer(self):
-        """
-        Clear the audio buffer.
-        """
-        self.audio_buffer = np.array([], dtype=np.float32)
+        self.audio_buffer = np.array([], dtype=np.int16)
