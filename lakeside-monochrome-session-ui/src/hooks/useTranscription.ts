@@ -8,7 +8,7 @@ interface TranscriptionState {
     isConnecting: boolean;
 }
 
-export function useTranscription(serverUrl: string = 'ws://localhost:8000/ws/transcribe') {
+export function useTranscription(serverUrl: string = 'https://lakeside-asr.onrender.com/ws/transcribe') {
     const [state, setState] = useState<TranscriptionState>({
         isPlaying: false,
         transcript: '',
