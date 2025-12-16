@@ -42,7 +42,8 @@ class FasterWhisperASR:
         if len(self.audio_buffer) > MAX_SAMPLES:
             self.audio_buffer = self.audio_buffer[-MAX_SAMPLES:]
 
-        if len(self.audio_buffer) < self.sample_rate * 1.0: 
+        # Wait for at least 3 seconds of audio for better accuracy
+        if len(self.audio_buffer) < self.sample_rate * 3.0: 
             return
 
         # OPTIMIZATION: Energy-based VAD (Skip inference if silent)
@@ -61,22 +62,28 @@ class FasterWhisperASR:
         # Convert to float32 only when needed for model
         audio_float32 = self.audio_buffer.astype(np.float32) / 32768.0
 
-        # Run transcription
-        # beam_size=1 (Greedy), best_of=1 (No candidates) -> Fastest/Lightest
+        # beam_size=5 for accuracy (slower but better)
         segments, info = self.model.transcribe(
             audio_float32, 
-            beam_size=1, 
-            best_of=1,
+            beam_size=5, 
+            best_of=5,
             language="en", 
             condition_on_previous_text=False,
-            vad_filter=False
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=700)
         )
         
         full_text = ""
         for segment in segments:
             full_text += segment.text + " "
+        
+        result = full_text.strip()
+        
+        # IMPORTANT: Clear buffer after successful transcription to prevent repeats
+        if result:
+            self.audio_buffer = np.array([], dtype=np.int16)
             
-        return full_text.strip()
+        return result
         
     def clear_buffer(self):
         self.audio_buffer = np.array([], dtype=np.int16)

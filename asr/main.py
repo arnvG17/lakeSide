@@ -19,8 +19,8 @@ app.add_middleware(
 )
 
 # Initialize ASR model (Global for simplicity, or per-worker)
-# For production, might want to load this lazily or in a dependency
-asr_model = FasterWhisperASR(model_size="tiny.en", device="cpu", compute_type="int8")
+# Using base.en for better accuracy (larger model, ~145MB)
+asr_model = FasterWhisperASR(model_size="base.en", device="cpu", compute_type="int8")
 
 @app.websocket("/ws/transcribe")
 async def websocket_endpoint(websocket: WebSocket):

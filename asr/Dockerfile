@@ -13,9 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # PRE-DOWNLOAD MODEL:
 # We run a small script to trigger the download during build.
-# This ensures the ~75MB model is baked into the image layer,
+# This ensures the ~145MB base.en model is baked into the image layer,
 # so the container doesn't need to download it at runtime.
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', device='cpu', compute_type='int8')"
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8')"
 
 # Copy application code
 COPY . .

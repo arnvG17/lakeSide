@@ -58,6 +58,11 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [chatInput, setChatInput] = useState("");
     const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
+    // Transcript history for the new tab
+    type TranscriptEntry = { text: string; timestamp: Date; speaker: string };
+    const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntry[]>([]);
+    const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
+
     // screen share state
     const [screenSharers, setScreenSharers] = useState<Set<string>>(new Set());
     const [isConnected, setIsConnected] = useState(false);
@@ -701,6 +706,29 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     }, [screenSharers, participants, featuredTile]);
 
     // -------------------------
+    // Push new transcripts to history
+    // -------------------------
+    const prevTranscriptRef = useRef<string>('');
+    useEffect(() => {
+        if (transcript && transcript !== prevTranscriptRef.current) {
+            // Get local user's email for speaker identification
+            const localParticipant = participants.find(p => p.isLocal);
+            const speaker = localParticipant?.email?.split('@')[0] || 'You';
+
+            setTranscriptHistory(prev => [...prev, {
+                text: transcript,
+                timestamp: new Date(),
+                speaker
+            }]);
+
+            // Auto-scroll
+            setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
+
+            prevTranscriptRef.current = transcript;
+        }
+    }, [transcript, participants]);
+
+    // -------------------------
     // Init Media on Mount
     // -------------------------
     useEffect(() => {
@@ -956,6 +984,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                     <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
                                     <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
                                     <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
+                                    <TabsTrigger value="transcript" className="text-white data-[state=active]:text-black">Transcript</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden min-h-0">
@@ -1013,6 +1042,42 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
                                 <TabsContent value="polls" className="flex-1 mt-6">
                                     <div className="text-white/60 text-sm">Polls coming soon…</div>
+                                </TabsContent>
+
+                                <TabsContent value="transcript" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
+                                    {/* Transcription Controls */}
+                                    <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+                                        <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-gray-500'}`} />
+                                        <span className="text-white text-sm font-medium">
+                                            {isTranscribing ? "Recording" : "Stopped"}
+                                        </span>
+                                        <button
+                                            onClick={isTranscribing ? stopTranscription : startTranscription}
+                                            className="ml-auto text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition"
+                                        >
+                                            {isTranscribing ? "Stop" : "Start Recording"}
+                                        </button>
+                                    </div>
+
+                                    {/* Transcript History */}
+                                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={transcriptScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+                                        {transcriptHistory.length === 0 && (
+                                            <div className="text-white/40 text-sm text-center mt-10">
+                                                {isTranscribing ? "Waiting for voice..." : "Start recording to see transcript"}
+                                            </div>
+                                        )}
+                                        {transcriptHistory.map((entry, idx) => (
+                                            <div key={idx} className="flex flex-col gap-1">
+                                                <div className="flex items-baseline justify-between">
+                                                    <span className="text-xs font-bold text-white/90">{entry.speaker}</span>
+                                                    <span className="text-[10px] text-white/40">
+                                                        {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                                <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words">{entry.text}</div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </TabsContent>
                             </Tabs>
                         )}
