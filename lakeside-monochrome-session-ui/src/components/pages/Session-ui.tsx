@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useSessionRecorder } from "@/hooks/useSessionRecorder";
+import { useTranscription } from "@/hooks/useTranscription";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -82,6 +83,10 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             .filter(p => !p.isLocal && p.streams)
             .flatMap(p => p.streams || [])
     });
+
+    // Transcription Hook
+    // Replace address with your public IP if testing on other devices
+    const { startTranscription, stopTranscription, transcript, isPlaying: isTranscribing } = useTranscription("ws://localhost:8000/ws/transcribe");
 
     // ICE config (add TURN as env for production)
     const ICE_CONFIG = {
@@ -796,6 +801,28 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             <div className="text-white/40 text-center">
                                 {participants.length === 0 ? "Waiting for participants…" : "Click a thumbnail below to view"}
                             </div>
+                        )}
+                    </div>
+
+                    {/* Real-time Transcription Overlay */}
+                    <div className="absolute top-4 left-4 z-50 bg-black/70 p-4 rounded-lg backdrop-blur-md border border-white/10 max-w-md pointer-events-auto">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-gray-500'}`} />
+                            <span className="text-white font-medium text-sm">
+                                {isTranscribing ? "Live Captions On" : "Captions Off"}
+                            </span>
+                            <button
+                                onClick={isTranscribing ? stopTranscription : startTranscription}
+                                className="ml-auto text-xs bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded transition"
+                            >
+                                {isTranscribing ? "Stop" : "Start"}
+                            </button>
+                        </div>
+
+                        {transcript && (
+                            <p className="text-white/90 text-lg leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-2">
+                                "{transcript}"
+                            </p>
                         )}
                     </div>
 
