@@ -8,7 +8,7 @@ interface TranscriptionState {
     isConnecting: boolean;
 }
 
-export function useTranscription(serverUrl: string = 'https://lakeside-asr.onrender.com/ws/transcribe') {
+export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrender.com/ws/transcribe') {
     const [state, setState] = useState<TranscriptionState>({
         isPlaying: false,
         transcript: '',
@@ -19,6 +19,32 @@ export function useTranscription(serverUrl: string = 'https://lakeside-asr.onren
     const processorRef = useRef<ScriptProcessorNode | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const inputRef = useRef<MediaStreamAudioSourceNode | null>(null);
+
+    // Resampler function: converts any sample rate to 16000Hz
+    const downsampleBuffer = (buffer: Float32Array, inputSampleRate: number, outputSampleRate: number) => {
+        if (outputSampleRate === inputSampleRate) {
+            return buffer;
+        }
+        const sampleRateRatio = inputSampleRate / outputSampleRate;
+        const newLength = Math.round(buffer.length / sampleRateRatio);
+        const result = new Float32Array(newLength);
+        let offsetResult = 0;
+        let offsetBuffer = 0;
+        while (offsetResult < result.length) {
+            const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+            // Linear interpolation or simple averaging
+            // Simple averging for downsampling
+            let accum = 0, count = 0;
+            for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+                accum += buffer[i];
+                count++;
+            }
+            result[offsetResult] = count > 0 ? accum / count : 0;
+            offsetResult++;
+            offsetBuffer = nextOffsetBuffer;
+        }
+        return result;
+    };
 
     const convertFloatTo16BitPCM = (input: Float32Array) => {
         const output = new Int16Array(input.length);
@@ -37,7 +63,7 @@ export function useTranscription(serverUrl: string = 'https://lakeside-asr.onren
             const ws = new WebSocket(serverUrl);
             socketRef.current = ws;
 
-            ws.onopen = () => {
+            ws.onopen = async () => {
                 console.log('Connected to ASR service');
                 setState(prev => ({ ...prev, isPlaying: true, isConnecting: false }));
             };
@@ -59,26 +85,43 @@ export function useTranscription(serverUrl: string = 'https://lakeside-asr.onren
                 setState(prev => ({ ...prev, isPlaying: false }));
             };
 
-            // Get user media specifically for transcription (or reuse existing stream if passed)
-            // For simplicity, we request a new stream here, but you could modify to accept a MediaStream
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Get user media
+            // Note: On mobile, this usually prompts permissions
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
 
             // Audio Context setup
-            const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+            // IMPORTANT: Do NOT force sampleRate here (Safari crashes). Let browser decide.
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            const audioContext = new AudioContext();
             audioContextRef.current = audioContext;
+
+            // IMPORTANT: Resume context for mobile browsers (they start suspended)
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
 
             const input = audioContext.createMediaStreamSource(stream);
             inputRef.current = input;
 
             // Processor
-            // Note: AudioWorklet is better for production, ScriptProcessor is easier for simple drop-in
+            // Buffer size 4096 is safer for mobile CPU usage than 2048 or 1024
             const processor = audioContext.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
                 if (ws.readyState === WebSocket.OPEN) {
                     const inputData = e.inputBuffer.getChannelData(0);
-                    const pcmData = convertFloatTo16BitPCM(inputData);
+
+                    // Downsample if needed (e.g. 48k -> 16k)
+                    const downsampled = downsampleBuffer(inputData, audioContext.sampleRate, 16000);
+
+                    const pcmData = convertFloatTo16BitPCM(downsampled);
                     ws.send(pcmData);
                 }
             };
@@ -95,15 +138,19 @@ export function useTranscription(serverUrl: string = 'https://lakeside-asr.onren
     const stopTranscription = useCallback(() => {
         if (socketRef.current) {
             socketRef.current.close();
+            socketRef.current = null;
         }
         if (processorRef.current) {
             processorRef.current.disconnect();
+            processorRef.current = null;
         }
         if (inputRef.current) {
             inputRef.current.disconnect();
+            inputRef.current = null;
         }
         if (audioContextRef.current) {
             audioContextRef.current.close();
+            audioContextRef.current = null;
         }
         setState(prev => ({ ...prev, isPlaying: false, transcript: '' }));
     }, []);

@@ -86,7 +86,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
     // Transcription Hook
     // Replace address with your public IP if testing on other devices
-    const { startTranscription, stopTranscription, transcript, isPlaying: isTranscribing } = useTranscription("ws://localhost:8000/ws/transcribe");
+    const { startTranscription, stopTranscription, transcript, isPlaying: isTranscribing } = useTranscription("wss://lakeside-asr.onrender.com/ws/transcribe");
 
     // ICE config (add TURN as env for production)
     const ICE_CONFIG = {
@@ -763,8 +763,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             {/* Local preview (hidden small preview) */}
             <video ref={localPreviewRef} autoPlay muted playsInline className="hidden" />
 
-            <div className="flex-1 flex overflow-hidden flex-col md:flex-row">
-                <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4">
+            <div className="flex-1 flex overflow-hidden flex-col md:flex-row relative">
+                <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4 relative">
                     {/* Main Featured View */}
                     <div className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden">
                         {featuredTile ? (
