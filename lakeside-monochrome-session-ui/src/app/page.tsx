@@ -46,9 +46,9 @@ export default function Home() {
                 </span>
               </div>
               <h2 className="text-7xl font-light tracking-tight leading-[1.1]">
-                The Figma for
+                A Studio Engineered
                 <br />
-                <span className="text-white/40">Teaching</span>
+                <span className="text-white/40">for Live Teaching</span>
               </h2>
             </div>
 
