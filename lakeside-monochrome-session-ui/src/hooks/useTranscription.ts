@@ -57,6 +57,7 @@ export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrende
 
     const startTranscription = useCallback(async () => {
         try {
+            console.log('[Transcription] Starting... connecting to:', serverUrl);
             setState(prev => ({ ...prev, isConnecting: true }));
 
             // Connect to WebSocket
@@ -64,7 +65,7 @@ export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrende
             socketRef.current = ws;
 
             ws.onopen = async () => {
-                console.log('Connected to ASR service');
+                console.log('[Transcription] WebSocket connected! Setting up audio...');
                 setState(prev => ({ ...prev, isPlaying: true, isConnecting: false }));
             };
 

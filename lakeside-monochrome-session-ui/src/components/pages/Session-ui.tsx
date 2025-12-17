@@ -49,7 +49,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isPanelOpen, setIsPanelOpen] = useState(true);
-    const [activeTab, setActiveTab] = useState("chat");
+    const [activeTab, setActiveTab] = useState("transcript");
     const [isMobile, setIsMobile] = useState(false);
 
     // participants & chat
@@ -665,6 +665,16 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     }, [roomId, mediaInitialized]); // run once per room after media init
 
     // -------------------------
+    // Auto-start transcription when connected
+    // -------------------------
+    useEffect(() => {
+        if (isConnected && mediaInitialized && !isTranscribing) {
+            console.log('[Session] Auto-starting transcription...');
+            startTranscription();
+        }
+    }, [isConnected, mediaInitialized, isTranscribing, startTranscription]);
+
+    // -------------------------
     // Auto-feature screen shares
     // -------------------------
     useEffect(() => {
@@ -980,11 +990,11 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             /* Desktop: Full tabbed interface */
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                                 <TabsList className="bg-black/40 border border-white/10 p-1 flex-shrink-0">
+                                    <TabsTrigger value="transcript" className="text-white data-[state=active]:text-black">Transcript</TabsTrigger>
                                     <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
                                     <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
                                     <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
                                     <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
-                                    <TabsTrigger value="transcript" className="text-white data-[state=active]:text-black">Transcript</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden min-h-0">

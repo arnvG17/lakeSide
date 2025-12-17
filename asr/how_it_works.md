@@ -109,3 +109,25 @@ Docker creates a **Container**—a lightweight, self-contained mini-computer tha
 **Analogy**:
 *   **Running locally**: Baking a cake in your friend's kitchen. You hope they have flour, eggs, and a working oven.
 *   **Running with Docker**: Bringing a fully equipped mobile kitchen truck that has everything already inside. You just park it and start baking.
+
+---
+
+## 8. Whisper Model Sizes
+
+| Model | Size | RAM Usage | Accuracy | Speed |
+|-------|------|-----------|----------|-------|
+| `tiny.en` | ~75 MB | ~150-200 MB | ⭐⭐ | ⚡⚡⚡⚡⚡ |
+| `base.en` | ~145 MB | ~300-400 MB | ⭐⭐⭐ | ⚡⚡⚡⚡ |
+| `small.en` | ~460 MB | ~800 MB - 1 GB | ⭐⭐⭐⭐ | ⚡⚡⚡ |
+| `medium.en` | ~1.5 GB | ~2-3 GB | ⭐⭐⭐⭐⭐ | ⚡⚡ |
+| `large-v2` | ~3 GB | ~5-6 GB | ⭐⭐⭐⭐⭐+ | ⚡ |
+
+### Hosting Recommendations
+
+| Platform | RAM | Recommended Model |
+|----------|-----|-------------------|
+| Render Free | 512 MB | `tiny.en` |
+| Render Starter ($7/mo) | 2 GB | `small.en` |
+| Railway / Fly.io | 1-2 GB | `base.en` or `small.en` |
+| Your own VPS | 4+ GB | `medium.en` |
+| GPU server | 8+ GB VRAM | `large-v2` |
