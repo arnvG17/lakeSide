@@ -985,9 +985,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                                 <TabsList className="bg-black/40 border border-white/10 p-1 flex-shrink-0">
                                     <TabsTrigger value="transcript" className="text-white data-[state=active]:text-black">Transcript</TabsTrigger>
+                                    <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
                                     <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
                                     <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
-                                    <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
                                     <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
                                 </TabsList>
 
