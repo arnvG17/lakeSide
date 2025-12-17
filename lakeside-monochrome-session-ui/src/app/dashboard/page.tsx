@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Plus, LogOut } from 'lucide-react'
 import { logout, getRecordings, getPreviousMeetings } from './actions'
 import { JoinMeetingButton } from '@/components/JoinMeetingButton'
+import { MeetingsList } from '@/components/MeetingsList'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -76,23 +77,7 @@ export default async function DashboardPage() {
                     <div>
                         <h3 className="text-xl font-light tracking-wide mb-6 text-white/80">Previous Meetings</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {meetings.length === 0 ? (
-                                <div className="col-span-full border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[150px]">
-                                    <p className="text-sm text-white/40">No meeting history found</p>
-                                </div>
-                            ) : (
-                                meetings.map((meeting: any) => (
-                                    <div
-                                        key={meeting.id}
-                                        className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] transition-all duration-300"
-                                    >
-                                        <h3 className="text-lg font-light mb-1">{meeting.roomName || 'Untitled Meeting'}</h3>
-                                        <p className="text-xs text-white/40">
-                                            {meeting.createdAt ? new Date(meeting.createdAt).toLocaleDateString() : 'Unknown Date'}
-                                        </p>
-                                    </div>
-                                ))
-                            )}
+                            <MeetingsList meetings={meetings} recordings={recordings} />
                         </div>
                     </div>
 

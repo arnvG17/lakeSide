@@ -845,21 +845,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     {/* Real-time Transcription Overlay */}
                     <div className="absolute top-4 left-4 z-50 bg-black/70 p-4 rounded-lg backdrop-blur-md border border-white/10 max-w-md pointer-events-auto">
                         <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-gray-500'}`} />
+                            <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
                             <span className="text-white font-medium text-sm">
-                                {isTranscribing ? "Live Captions On" : "Captions Off"}
+                                {isTranscribing ? "Live Captions" : "Connecting..."}
                             </span>
-                            <button
-                                onClick={isTranscribing ? stopTranscription : startTranscription}
-                                className="ml-auto text-xs bg-white/10 hover:bg-white/20 text-white px-2 py-1 rounded transition"
-                            >
-                                {isTranscribing ? "Stop" : "Start"}
-                            </button>
                         </div>
 
                         {isTranscribing && !transcript && (
                             <p className="text-white/40 italic text-sm animate-pulse">
-                                Waiting for voice...
+                                Listening...
                             </p>
                         )}
                         {transcript && (
@@ -1055,25 +1049,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                 </TabsContent>
 
                                 <TabsContent value="transcript" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
-                                    {/* Transcription Controls */}
+                                    {/* Live Transcription Status */}
                                     <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-                                        <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-gray-500'}`} />
+                                        <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
                                         <span className="text-white text-sm font-medium">
-                                            {isTranscribing ? "Recording" : "Stopped"}
+                                            {isTranscribing ? "Live Transcription" : "Connecting..."}
                                         </span>
-                                        <button
-                                            onClick={isTranscribing ? stopTranscription : startTranscription}
-                                            className="ml-auto text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition"
-                                        >
-                                            {isTranscribing ? "Stop" : "Start Recording"}
-                                        </button>
                                     </div>
 
                                     {/* Transcript History */}
                                     <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={transcriptScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
                                         {transcriptHistory.length === 0 && (
                                             <div className="text-white/40 text-sm text-center mt-10">
-                                                {isTranscribing ? "Waiting for voice..." : "Start recording to see transcript"}
+                                                Listening for voices...
                                             </div>
                                         )}
                                         {transcriptHistory.map((entry, idx) => (
