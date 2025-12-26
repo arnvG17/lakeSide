@@ -129,6 +129,9 @@ export async function getPreviousMeetings() {
         .from('Room')
         .select('*')
         .eq('ownerId', user.id)
+
+
+        
         .order('createdAt', { ascending: false })
 
     if (error) {
