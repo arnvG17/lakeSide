@@ -13,7 +13,7 @@ export default function Home() {
             LAKESIDE
           </h1>
           <Link
-            href="/session"
+            href="/login"
             className="px-6 py-2 bg-white text-black text-sm font-medium tracking-wide rounded-full hover:bg-white/90 transition-all duration-300"
           >
             Launch Session
@@ -64,7 +64,7 @@ export default function Home() {
                 href="/login"
                 className="group px-8 py-4 bg-white text-black text-sm font-medium tracking-wide rounded-full hover:bg-white/90 transition-all duration-300 flex items-center gap-2 shadow-[0_0_32px_rgba(255,255,255,0.1)]"
               >
-                Get Started
+
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
               </Link>
               <button className="px-8 py-4 bg-transparent text-white text-sm font-medium tracking-wide rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300">
