@@ -5,6 +5,7 @@ import { Plus, LogOut } from 'lucide-react'
 import { logout, getRecordings, getPreviousMeetings } from './actions'
 import { JoinMeetingButton } from '@/components/JoinMeetingButton'
 import { MeetingsList } from '@/components/MeetingsList'
+import Beams from '@/components/ui/Beams'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -23,7 +24,17 @@ export default async function DashboardPage() {
     console.log(meetings);
 
     return (
-        <div className="min-h-screen w-full bg-black text-white flex flex-col">
+        <div className="min-h-screen w-full bg-black text-white flex flex-col relative overflow-hidden">
+            {/* Background Effect */}
+            <div className="absolute inset-0 z-0 pointer-events-none opacity-40">
+                <Beams
+                    beamNumber={8}
+                    lightColor="#4444ff"
+                    speed={1.5}
+                    rotation={-15}
+                />
+            </div>
+
             {/* Header */}
             <header className="border-b border-white/10 px-8 py-6 relative z-10">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">

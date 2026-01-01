@@ -78,13 +78,33 @@ const RoomStore = {
         return rooms[roomId]?.screenSharers ? Array.from(rooms[roomId].screenSharers) : [];
     },
 
+    // Transcript storage for persistence across reloads
+    addTranscript(roomId, transcript) {
+        if (!rooms[roomId]) {
+            rooms[roomId] = { users: {}, chat: [], transcripts: [] };
+        }
+        if (!rooms[roomId].transcripts) {
+            rooms[roomId].transcripts = [];
+        }
+        rooms[roomId].transcripts.push(transcript);
 
+        // Keep only last 500 transcripts per room to prevent memory issues
+        if (rooms[roomId].transcripts.length > 500) {
+            rooms[roomId].transcripts = rooms[roomId].transcripts.slice(-500);
+        }
 
+        return transcript;
+    },
 
+    getTranscripts(roomId) {
+        return rooms[roomId]?.transcripts || [];
+    },
 
-
-
-
+    clearTranscripts(roomId) {
+        if (rooms[roomId]) {
+            rooms[roomId].transcripts = [];
+        }
+    }
 
 };
 

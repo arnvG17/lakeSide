@@ -606,6 +606,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             s.on("connect", () => {
                 setIsConnected(true);
                 s.emit("join-room", { roomId });
+                // Request chat and transcript history
+                s.emit("request-chat-history", { roomId });
+                s.emit("request-transcript-history", { roomId });
             });
 
             // existing participants + optional screenSharers info sent by server
@@ -722,6 +725,20 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             s.on("chat-history", (history: any[]) => {
                 setChatMessages(history || []);
                 setTimeout(() => chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight }), 100);
+            });
+
+            // transcript history (for persistence across reloads)
+            s.on("transcript-history", (history: any[]) => {
+                if (!history || history.length === 0) return;
+                setTranscriptHistory(history.map((t: any) => ({
+                    text: t.text,
+                    startTime: t.startTime,
+                    endTime: t.endTime,
+                    timestamp: new Date(t.timestamp),
+                    speaker: t.speaker
+                })));
+                setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
+                console.log(`[Session] Loaded ${history.length} transcripts from history`);
             });
 
             s.on("receive-message", (message: any) => {

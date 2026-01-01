@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { ArrowRight } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
+import GradientBlinds from "@/components/ui/GradientBlinds"
 
 function LoginContent() {
   const [isLoading, setIsLoading] = useState(false)
@@ -31,38 +32,45 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-black text-white flex flex-col">
+    <div className="min-h-screen w-full bg-[#080707] text-white flex flex-col relative overflow-hidden font-stardom">
+      {/* Dynamic Background */}
+      <div className="absolute inset-0 z-0 opacity-50">
+        <GradientBlinds
+          gradientColors={["#110d11", "#0c0b0e", "#080707"]}
+          angle={-45}
+          noise={0.4}
+          blindCount={12}
+          blindMinWidth={80}
+          mouseDampening={0.2}
+          mirrorGradient={true}
+          spotlightRadius={1.2}
+          spotlightSoftness={1}
+          spotlightOpacity={0.8}
+          distortAmount={5}
+          shineDirection="right"
+        />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-white/10 px-8 py-6 relative z-10">
+      <header className="px-8 py-8 relative z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/">
-            <h1 className="text-2xl font-light tracking-[0.2em] text-white cursor-pointer hover:text-white/80 transition-colors duration-300">
-              LAKESIDE
-            </h1>
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-sm transform rotate-45 group-hover:rotate-90 transition-transform duration-500">
+              <span className="transform -rotate-45 font-bold">L</span>
+            </div>
+            <h1 className="text-xl font-bold tracking-tighter">LAKESIDE</h1>
           </Link>
           <Link
             href="/"
-            className="px-6 py-2 bg-transparent text-white text-sm font-medium tracking-wide rounded-full border border-white/20 hover:bg-white/5 transition-all duration-300"
+            className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 text-white text-sm font-medium rounded-full hover:bg-white/10 transition-all duration-300"
           >
             Back to Home
           </Link>
         </div>
       </header>
 
-      {/* Login Section with Noise + Gradient */}
-      <main className="flex-1 flex items-center justify-center px-8 py-20 relative overflow-hidden">
-        {/* Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-black to-black" />
-
-        {/* Noise Texture Overlay */}
-        <div
-          className="absolute inset-0 opacity-[0.15]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-            backgroundRepeat: 'repeat',
-            backgroundSize: '128px 128px'
-          }}
-        />
+      {/* Login Section */}
+      <main className="flex-1 flex items-center justify-center px-8 py-20 relative z-10">
 
         <div className="max-w-md w-full relative z-10">
           {/* Login Card */}

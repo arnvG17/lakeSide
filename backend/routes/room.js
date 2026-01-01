@@ -148,6 +148,7 @@ const roomSocketHandler = (io) => {
             if (!roomId || !text) return;
 
             const transcriptData = {
+                id: `${Date.now()}-${socket.user.id}`,
                 userId: socket.user.id,
                 email: socket.user.email,
                 speaker: socket.user.email?.split('@')[0] || 'Unknown',
@@ -157,9 +158,20 @@ const roomSocketHandler = (io) => {
                 timestamp: Date.now()
             };
 
+            // Store in RoomStore for persistence
+            RoomStore.addTranscript(roomId, transcriptData);
+
             // Broadcast to ALL users in room (including sender)
             io.to(roomId).emit('receive-transcript', transcriptData);
             console.log(`[Transcript] ${transcriptData.speaker}: "${text.substring(0, 50)}..."`);
+        });
+
+        // Request transcript history (called when joining/rejoining room)
+        socket.on('request-transcript-history', ({ roomId }) => {
+            if (!roomId) return;
+            const history = RoomStore.getTranscripts(roomId);
+            socket.emit('transcript-history', history);
+            console.log(`[Transcript] Sent ${history.length} transcripts to ${socket.user.email}`);
         });
 
         socket.on('disconnect', () => {
