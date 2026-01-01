@@ -99,26 +99,16 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             },
             onTranscript: (entry) => {
                 // Entry now contains { text, startTime, endTime }
-                const localParticipant = participants.find(p => p.isLocal);
-                const speaker = localParticipant?.email?.split('@')[0] || 'You';
-
-                setTranscriptHistory(prev => {
-                    // Check if the last entry is identical (duplicate event safeguard)
-                    const last = prev[prev.length - 1];
-                    if (last && last.text === entry.text && (new Date().getTime() - last.timestamp.getTime() < 2000)) {
-                        return prev;
-                    }
-                    return [...prev, {
+                // Broadcast to all users via socket
+                if (socketRef.current && socketRef.current.connected) {
+                    socketRef.current.emit('broadcast-transcript', {
+                        roomId,
                         text: entry.text,
                         startTime: entry.startTime,
-                        endTime: entry.endTime,
-                        timestamp: new Date(),
-                        speaker
-                    }];
-                });
-
-                // Auto-scroll
-                setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
+                        endTime: entry.endTime
+                    });
+                }
+                // Note: We no longer add to local state here - we'll receive it back via socket
             }
         }
     );
@@ -688,6 +678,26 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             s.on("receive-message", (message: any) => {
                 setChatMessages(prev => [...prev, message]);
                 setTimeout(() => chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight }), 100);
+            });
+
+            // Transcript broadcast - receive from any user in room
+            s.on("receive-transcript", (data: any) => {
+                setTranscriptHistory(prev => {
+                    // Deduplicate by checking last entry
+                    const last = prev[prev.length - 1];
+                    if (last && last.text === data.text && (Date.now() - last.timestamp.getTime() < 2000)) {
+                        return prev;
+                    }
+                    return [...prev, {
+                        text: data.text,
+                        startTime: data.startTime,
+                        endTime: data.endTime,
+                        timestamp: new Date(data.timestamp),
+                        speaker: data.speaker
+                    }];
+                });
+                // Auto-scroll
+                setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
             });
 
             // ----------------------------

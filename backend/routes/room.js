@@ -143,6 +143,25 @@ const roomSocketHandler = (io) => {
             }
         });
 
+        // Transcript broadcast - emit to all users in the room
+        socket.on('broadcast-transcript', ({ roomId, text, startTime, endTime }) => {
+            if (!roomId || !text) return;
+
+            const transcriptData = {
+                userId: socket.user.id,
+                email: socket.user.email,
+                speaker: socket.user.email?.split('@')[0] || 'Unknown',
+                text,
+                startTime,
+                endTime,
+                timestamp: Date.now()
+            };
+
+            // Broadcast to ALL users in room (including sender)
+            io.to(roomId).emit('receive-transcript', transcriptData);
+            console.log(`[Transcript] ${transcriptData.speaker}: "${text.substring(0, 50)}..."`);
+        });
+
         socket.on('disconnect', () => {
             if (socket.roomId) {
                 // Remove from store
