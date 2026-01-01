@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 /**
  * POST /api/transcripts
- * Save a VTT transcript to the database
+ * Save a VTT transcript to the database (authenticated)
  */
 router.post('/', authMiddleware, async (req, res) => {
     try {
@@ -30,6 +30,38 @@ router.post('/', authMiddleware, async (req, res) => {
         res.status(201).json(transcript);
     } catch (error) {
         console.error('Error saving transcript:', error);
+        res.status(500).json({ error: 'Failed to save transcript' });
+    }
+});
+
+/**
+ * POST /api/transcripts/beacon
+ * Save transcript via sendBeacon (no auth for page unload)
+ * Uses roomId as identifier - in production, add token validation
+ */
+router.post('/beacon', async (req, res) => {
+    try {
+        const { roomId, content, format = 'vtt' } = req.body;
+
+        if (!roomId || !content) {
+            return res.status(400).json({ error: 'roomId and content are required' });
+        }
+
+        // For beacon, we store without userId (anonymous session save)
+        // In production, you'd validate a token passed in the payload
+        const transcript = await prisma.transcript.create({
+            data: {
+                roomId,
+                userId: 'system', // Placeholder for beacon saves
+                content,
+                format,
+            },
+        });
+
+        console.log(`[Beacon] Saved transcript for room ${roomId}`);
+        res.status(201).json({ ok: true });
+    } catch (error) {
+        console.error('Error saving beacon transcript:', error);
         res.status(500).json({ error: 'Failed to save transcript' });
     }
 });

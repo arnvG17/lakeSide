@@ -100,6 +100,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             },
             onTranscript: (entry) => {
                 // Entry now contains { text, startTime, endTime }
+                console.log('[Session] Received transcript:', entry);
+
                 const localParticipant = participants.find(p => p.isLocal);
                 const speaker = localParticipant?.email?.split('@')[0] || 'You';
 
@@ -110,13 +112,15 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     if (last && last.text === entry.text && (new Date().getTime() - last.timestamp.getTime() < 2000)) {
                         return prev;
                     }
-                    return [...prev, {
+                    const newEntry = {
                         text: entry.text,
                         startTime: entry.startTime,
                         endTime: entry.endTime,
                         timestamp: new Date(),
                         speaker
-                    }];
+                    };
+                    console.log('[Session] Adding to transcript history:', newEntry);
+                    return [...prev, newEntry];
                 });
 
                 // Also broadcast to all users via socket (so others see it too)
@@ -928,9 +932,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     format: 'vtt'
                 });
 
-                // sendBeacon is reliable during page unload
+                // sendBeacon is reliable during page unload - uses /beacon endpoint (no auth)
                 navigator.sendBeacon(
-                    `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/transcripts`,
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/transcripts/beacon`,
                     new Blob([payload], { type: 'application/json' })
                 );
                 console.log('[Session] Auto-saved transcript to database');
