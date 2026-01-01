@@ -91,7 +91,43 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
     // Transcription Hook
     // Replace address with your public IP if testing on other devices
-    const { startTranscription, stopTranscription, transcript, isPlaying: isTranscribing } = useTranscription("wss://lakeside-asr.onrender.com/ws/transcribe");
+    const { startTranscription, stopTranscription, transcript, isPlaying: isTranscribing } = useTranscription(
+        "wss://lakeside-asr.onrender.com/ws/transcribe",
+        {
+            onAudioRecognized: () => {
+                // Determine which tab to switch to or stay
+                // For now, let's ensure we are showing the transcript/voice section if desirable
+                // But user might be elsewhere. Let's just toast or indicators.
+                // console.log("[Session] Audio recognized!");
+            },
+            onTranscript: (text) => {
+                // Add to history
+                // Since our backend clears buffer on success, each 'text' here is likely a new segment
+                // OR a repeated segment if we aren't careful.
+                // But based on our analysis, main.py sends 'transcript' then clears buffer.
+                // So each arrival is a CHUNK. We should append it.
+
+                const localParticipant = participants.find(p => p.isLocal);
+                const speaker = localParticipant?.email?.split('@')[0] || 'You';
+
+                setTranscriptHistory(prev => {
+                    // Check if the last entry is identical (duplicate event safeguard)
+                    const last = prev[prev.length - 1];
+                    if (last && last.text === text && (new Date().getTime() - last.timestamp.getTime() < 2000)) {
+                        return prev;
+                    }
+                    return [...prev, {
+                        text,
+                        timestamp: new Date(),
+                        speaker
+                    }];
+                });
+
+                // Auto-scroll
+                setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
+            }
+        }
+    );
 
     // ICE config (add TURN as env for production)
     const ICE_CONFIG = {
@@ -718,25 +754,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     // Push new transcripts to history
     // -------------------------
+    // -------------------------
+    // Push new transcripts to history
+    // -------------------------
+    // Replaced by onTranscript callback in useTranscription
+    /*
     const prevTranscriptRef = useRef<string>('');
     useEffect(() => {
         if (transcript && transcript !== prevTranscriptRef.current) {
-            // Get local user's email for speaker identification
-            const localParticipant = participants.find(p => p.isLocal);
-            const speaker = localParticipant?.email?.split('@')[0] || 'You';
-
-            setTranscriptHistory(prev => [...prev, {
-                text: transcript,
-                timestamp: new Date(),
-                speaker
-            }]);
-
-            // Auto-scroll
-            setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
-
+            // ... (old logic removed)
             prevTranscriptRef.current = transcript;
         }
     }, [transcript, participants]);
+    */
 
     // -------------------------
     // Init Media on Mount

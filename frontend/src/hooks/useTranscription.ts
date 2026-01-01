@@ -8,12 +8,28 @@ interface TranscriptionState {
     isConnecting: boolean;
 }
 
-export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrender.com/ws/transcribe') {
+interface UseTranscriptionOptions {
+    onAudioRecognized?: () => void;
+    onTranscript?: (text: string) => void;
+}
+
+export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrender.com/ws/transcribe', options?: UseTranscriptionOptions) {
     const [state, setState] = useState<TranscriptionState>({
         isPlaying: false,
         transcript: '',
         isConnecting: false,
     });
+
+    // Track if we have detected audio in this session
+    const hasDetectedAudioRef = useRef(false);
+
+    // Keep latest options in ref to avoid dependency issues/stale closures
+    const optionsRef = useRef(options);
+
+    // Update ref when options change
+    if (optionsRef.current !== options) {
+        optionsRef.current = options;
+    }
 
     const socketRef = useRef<WebSocket | null>(null);
     const processorRef = useRef<ScriptProcessorNode | null>(null);
@@ -58,6 +74,7 @@ export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrende
     const startTranscription = useCallback(async () => {
         try {
             console.log('[Transcription] Starting... connecting to:', serverUrl);
+            hasDetectedAudioRef.current = false;
             setState(prev => ({ ...prev, isConnecting: true }));
 
             // Connect to WebSocket
@@ -72,6 +89,13 @@ export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrende
             ws.onmessage = (event) => {
                 const response = JSON.parse(event.data);
                 if (response.type === 'partial' || response.type === 'final') {
+                    if (response.text && response.text.trim()) {
+                        if (!hasDetectedAudioRef.current) {
+                            hasDetectedAudioRef.current = true;
+                            optionsRef.current?.onAudioRecognized?.();
+                        }
+                        optionsRef.current?.onTranscript?.(response.text);
+                    }
                     setState(prev => ({ ...prev, transcript: response.text }));
                 }
             };
