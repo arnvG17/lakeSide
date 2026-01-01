@@ -20,8 +20,8 @@ app.add_middleware(
 )
 
 # Initialize ASR model (Global for simplicity, or per-worker)
-# Using base.en for better accuracy (trade-off with speed)
-asr_model = FasterWhisperASR(model_size="base.en", device="cpu", compute_type="int8")
+# Using tiny.en for Render free tier (~75MB, fits in 512MB RAM)
+asr_model = FasterWhisperASR(model_size="tiny.en", device="cpu", compute_type="int8")
 
 @app.websocket("/ws/transcribe")
 async def websocket_endpoint(websocket: WebSocket):
