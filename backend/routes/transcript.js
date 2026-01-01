@@ -1,6 +1,6 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
-const { authMiddleware } = require('../middleware/auth');
+const authenticateUser = require('../middleware/authMiddleware');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
  * POST /api/transcripts
  * Save a VTT transcript to the database (authenticated)
  */
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authenticateUser, async (req, res) => {
     try {
         const { roomId, content, format = 'vtt' } = req.body;
         const userId = req.user.id;
@@ -70,7 +70,7 @@ router.post('/beacon', async (req, res) => {
  * GET /api/transcripts/:roomId
  * Get all transcripts for a room
  */
-router.get('/:roomId', authMiddleware, async (req, res) => {
+router.get('/:roomId', authenticateUser, async (req, res) => {
     try {
         const { roomId } = req.params;
 
@@ -90,7 +90,7 @@ router.get('/:roomId', authMiddleware, async (req, res) => {
  * GET /api/transcripts/download/:id
  * Download a transcript as a VTT file
  */
-router.get('/download/:id', authMiddleware, async (req, res) => {
+router.get('/download/:id', authenticateUser, async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -117,7 +117,7 @@ router.get('/download/:id', authMiddleware, async (req, res) => {
  * GET /api/transcripts/user/me
  * Get all transcripts for the current user
  */
-router.get('/user/me', authMiddleware, async (req, res) => {
+router.get('/user/me', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.id;
 
