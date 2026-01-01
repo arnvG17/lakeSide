@@ -61,6 +61,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // Transcript history for the new tab - includes timestamps for VTT subtitle generation
     type TranscriptEntryWithMeta = { text: string; startTime: number; endTime: number; timestamp: Date; speaker: string };
     const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntryWithMeta[]>([]);
+    const transcriptHistoryRef = useRef<TranscriptEntryWithMeta[]>([]); // Ref for auto-save on unmount
     const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
 
     // screen share state
@@ -99,7 +100,26 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             },
             onTranscript: (entry) => {
                 // Entry now contains { text, startTime, endTime }
-                // Broadcast to all users via socket
+                const localParticipant = participants.find(p => p.isLocal);
+                const speaker = localParticipant?.email?.split('@')[0] || 'You';
+
+                // Add to local history immediately (so it shows up for this user)
+                setTranscriptHistory(prev => {
+                    // Check if the last entry is identical (duplicate event safeguard)
+                    const last = prev[prev.length - 1];
+                    if (last && last.text === entry.text && (new Date().getTime() - last.timestamp.getTime() < 2000)) {
+                        return prev;
+                    }
+                    return [...prev, {
+                        text: entry.text,
+                        startTime: entry.startTime,
+                        endTime: entry.endTime,
+                        timestamp: new Date(),
+                        speaker
+                    }];
+                });
+
+                // Also broadcast to all users via socket (so others see it too)
                 if (socketRef.current && socketRef.current.connected) {
                     socketRef.current.emit('broadcast-transcript', {
                         roomId,
@@ -108,7 +128,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                         endTime: entry.endTime
                     });
                 }
-                // Note: We no longer add to local state here - we'll receive it back via socket
+
+                // Auto-scroll
+                setTimeout(() => transcriptScrollRef.current?.scrollTo({ top: transcriptScrollRef.current.scrollHeight }), 100);
             }
         }
     );
@@ -146,19 +168,42 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         toast.success("VTT subtitle file downloaded!");
     };
 
-    // Save transcript to database
-    const saveTranscriptToDatabase = async () => {
-        if (transcriptHistory.length === 0) {
-            toast.error("No transcript to save");
+    // Keep ref in sync with state for auto-save on unmount
+    useEffect(() => {
+        transcriptHistoryRef.current = transcriptHistory;
+    }, [transcriptHistory]);
+
+    // Generate VTT from ref (for use in cleanup)
+    const generateVTTFromRef = (): string => {
+        let vtt = "WEBVTT\n\n";
+        transcriptHistoryRef.current.forEach((entry, index) => {
+            const formatTime = (seconds: number): string => {
+                const hrs = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds % 1) * 1000);
+                return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+            };
+            vtt += `${index + 1}\n`;
+            vtt += `${formatTime(entry.startTime)} --> ${formatTime(entry.endTime)}\n`;
+            vtt += `${entry.text}\n\n`;
+        });
+        return vtt;
+    };
+
+    // Save transcript to database (can be called manually or on session end)
+    const saveTranscriptToDatabase = async (silent = false) => {
+        const history = transcriptHistoryRef.current;
+        if (history.length === 0) {
+            if (!silent) toast.error("No transcript to save");
             return;
         }
         try {
-            const vttContent = generateVTT();
+            const vttContent = generateVTTFromRef();
             const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/transcripts`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // Auth header would be added by middleware in production
                 },
                 body: JSON.stringify({
                     roomId,
@@ -167,13 +212,13 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 })
             });
             if (response.ok) {
-                toast.success("Transcript saved to database!");
+                if (!silent) toast.success("Transcript saved to database!");
             } else {
-                toast.error("Failed to save transcript");
+                if (!silent) toast.error("Failed to save transcript");
             }
         } catch (error) {
             console.error("Error saving transcript:", error);
-            toast.error("Failed to save transcript");
+            if (!silent) toast.error("Failed to save transcript");
         }
     };
 
@@ -680,8 +725,13 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 setTimeout(() => chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight }), 100);
             });
 
-            // Transcript broadcast - receive from any user in room
+            // Transcript broadcast - receive from OTHER users in room
             s.on("receive-transcript", (data: any) => {
+                // Skip if this is from ourselves (we already added it locally)
+                if (data.userId === myUserIdRef.current) {
+                    return;
+                }
+
                 setTranscriptHistory(prev => {
                     // Deduplicate by checking last entry
                     const last = prev[prev.length - 1];
@@ -840,11 +890,50 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // Init Media on Mount
     // -------------------------
     useEffect(() => {
-        enableUserMedia().finally(() => setMediaInitialized(true));
+        enableUserMedia().finally(() => {
+            setMediaInitialized(true);
+            // Start transcription after media is ready
+            startTranscription();
+        });
 
         return () => {
             if (localMediaStreamRef.current) {
                 localMediaStreamRef.current.getTracks().forEach(t => t.stop());
+            }
+            // Stop transcription on unmount
+            stopTranscription();
+            // Auto-save transcript to database when leaving session
+            if (transcriptHistoryRef.current.length > 0) {
+                // Use sendBeacon for reliable delivery during page unload
+                const vtt = (() => {
+                    let vtt = "WEBVTT\n\n";
+                    transcriptHistoryRef.current.forEach((entry, index) => {
+                        const formatTime = (seconds: number): string => {
+                            const hrs = Math.floor(seconds / 3600);
+                            const mins = Math.floor((seconds % 3600) / 60);
+                            const secs = Math.floor(seconds % 60);
+                            const ms = Math.floor((seconds % 1) * 1000);
+                            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+                        };
+                        vtt += `${index + 1}\n`;
+                        vtt += `${formatTime(entry.startTime)} --> ${formatTime(entry.endTime)}\n`;
+                        vtt += `${entry.text}\n\n`;
+                    });
+                    return vtt;
+                })();
+
+                const payload = JSON.stringify({
+                    roomId,
+                    content: vtt,
+                    format: 'vtt'
+                });
+
+                // sendBeacon is reliable during page unload
+                navigator.sendBeacon(
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/transcripts`,
+                    new Blob([payload], { type: 'application/json' })
+                );
+                console.log('[Session] Auto-saved transcript to database');
             }
         };
     }, []);
@@ -1164,7 +1253,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                                     Download VTT
                                                 </button>
                                                 <button
-                                                    onClick={saveTranscriptToDatabase}
+                                                    onClick={() => saveTranscriptToDatabase()}
                                                     className="px-3 py-1 bg-white hover:bg-white/90 text-black text-xs rounded-full transition-colors"
                                                 >
                                                     Save
