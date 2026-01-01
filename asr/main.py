@@ -4,6 +4,7 @@ from asr import FasterWhisperASR
 import logging
 import asyncio
 import json
+import time
 
 app = FastAPI()
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,10 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("WebSocket connection established.")
     
+    # Track timestamps for subtitle generation
+    session_start_time = time.time()
+    last_transcript_end_time = 0.0
+    
     try:
         while True:
             # Receive audio chunk
@@ -36,35 +41,31 @@ async def websocket_endpoint(websocket: WebSocket):
             # Process audio
             asr_model.process_audio_chunk(data)
             
-            # Trigger transcription periodically or based on buffer size
-            # For this simple streaming example, we'll try to transcribe after every chunk 
-            # BUT: In a real app, you'd buffer more and use a separate task/thread loop
-            # to avoid blocking the receiving loop.
+            # Calculate current time offset from session start
+            current_time = time.time() - session_start_time
             
-            # HACK: For demo, just transcribe every 1 second worth of data roughly
-            # This is blocking, production should use asyncio.to_thread
+            # Trigger transcription periodically or based on buffer size
             transcript = await asyncio.to_thread(asr_model.transcribe)
             
             if transcript:
+                # Calculate timestamps for this segment
+                start_time = last_transcript_end_time
+                end_time = current_time
+                last_transcript_end_time = end_time
+                
                 # LOGGING: Print the actual text so user can verify it in console
-                logger.info(f"Transcript: {transcript}")
+                logger.info(f"Transcript [{start_time:.2f}s - {end_time:.2f}s]: {transcript}")
                 
                 response = {
-                    "type": "partial", # or final logic
-                    "text": transcript
+                    "type": "final",
+                    "text": transcript,
+                    "startTime": round(start_time, 3),
+                    "endTime": round(end_time, 3)
                 }
                 await websocket.send_text(json.dumps(response))
                 
-                # Simple strategy: clear buffer after some time or silence?
-                # For continuous streaming, we need a better sliding window.
-                # Here we just keep appending which is memory leak eventually 
-                # and gets slower. 
-                # A proper implementation needs a ring buffer or context window management.
-                
-                # Reset buffer if it gets too long (e.g. 10MB) to prevent OOM in this demo
+                # Reset buffer if it gets too long to prevent OOM
                 if len(asr_model.audio_buffer) > 16000 * 30: # 30 seconds
-                     # In a real app, you would keep the last few seconds for context
-                     # and discard the rest.
                      logger.info("Buffer limit reached, clearing...")
                      asr_model.clear_buffer()
 

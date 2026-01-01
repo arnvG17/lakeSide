@@ -8,9 +8,15 @@ interface TranscriptionState {
     isConnecting: boolean;
 }
 
+interface TranscriptEntry {
+    text: string;
+    startTime: number;
+    endTime: number;
+}
+
 interface UseTranscriptionOptions {
     onAudioRecognized?: () => void;
-    onTranscript?: (text: string) => void;
+    onTranscript?: (entry: TranscriptEntry) => void;
 }
 
 export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrender.com/ws/transcribe', options?: UseTranscriptionOptions) {
@@ -94,7 +100,12 @@ export function useTranscription(serverUrl: string = 'wss://lakeside-asr.onrende
                             hasDetectedAudioRef.current = true;
                             optionsRef.current?.onAudioRecognized?.();
                         }
-                        optionsRef.current?.onTranscript?.(response.text);
+                        // Pass transcript with timestamps for subtitle generation
+                        optionsRef.current?.onTranscript?.({
+                            text: response.text,
+                            startTime: response.startTime ?? 0,
+                            endTime: response.endTime ?? 0
+                        });
                     }
                     setState(prev => ({ ...prev, transcript: response.text }));
                 }

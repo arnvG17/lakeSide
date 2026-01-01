@@ -5,6 +5,7 @@ const http = require('http');
 require('dotenv').config(); // Load env from current dir
 const { router: roomRoutes, roomSocketHandler } = require('./routes/room');
 const authRoutes = require('./routes/auth');
+const transcriptRoutes = require('./routes/transcript');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,6 +23,7 @@ app.use(express.json());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
+app.use('/api/transcripts', transcriptRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {

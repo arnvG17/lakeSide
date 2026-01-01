@@ -58,9 +58,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [chatInput, setChatInput] = useState("");
     const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
-    // Transcript history for the new tab
-    type TranscriptEntry = { text: string; timestamp: Date; speaker: string };
-    const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntry[]>([]);
+    // Transcript history for the new tab - includes timestamps for VTT subtitle generation
+    type TranscriptEntryWithMeta = { text: string; startTime: number; endTime: number; timestamp: Date; speaker: string };
+    const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntryWithMeta[]>([]);
     const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
 
     // screen share state
@@ -95,29 +95,23 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
         "wss://lakeside-asr.onrender.com/ws/transcribe",
         {
             onAudioRecognized: () => {
-                // Determine which tab to switch to or stay
-                // For now, let's ensure we are showing the transcript/voice section if desirable
-                // But user might be elsewhere. Let's just toast or indicators.
-                // console.log("[Session] Audio recognized!");
+                // Audio recognized - transcription is working
             },
-            onTranscript: (text) => {
-                // Add to history
-                // Since our backend clears buffer on success, each 'text' here is likely a new segment
-                // OR a repeated segment if we aren't careful.
-                // But based on our analysis, main.py sends 'transcript' then clears buffer.
-                // So each arrival is a CHUNK. We should append it.
-
+            onTranscript: (entry) => {
+                // Entry now contains { text, startTime, endTime }
                 const localParticipant = participants.find(p => p.isLocal);
                 const speaker = localParticipant?.email?.split('@')[0] || 'You';
 
                 setTranscriptHistory(prev => {
                     // Check if the last entry is identical (duplicate event safeguard)
                     const last = prev[prev.length - 1];
-                    if (last && last.text === text && (new Date().getTime() - last.timestamp.getTime() < 2000)) {
+                    if (last && last.text === entry.text && (new Date().getTime() - last.timestamp.getTime() < 2000)) {
                         return prev;
                     }
                     return [...prev, {
-                        text,
+                        text: entry.text,
+                        startTime: entry.startTime,
+                        endTime: entry.endTime,
                         timestamp: new Date(),
                         speaker
                     }];
@@ -128,6 +122,70 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             }
         }
     );
+
+    // Generate VTT content from transcript history
+    const generateVTT = (): string => {
+        let vtt = "WEBVTT\n\n";
+        transcriptHistory.forEach((entry, index) => {
+            const formatTime = (seconds: number): string => {
+                const hrs = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                const ms = Math.floor((seconds % 1) * 1000);
+                return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+            };
+            vtt += `${index + 1}\n`;
+            vtt += `${formatTime(entry.startTime)} --> ${formatTime(entry.endTime)}\n`;
+            vtt += `${entry.text}\n\n`;
+        });
+        return vtt;
+    };
+
+    // Download VTT file
+    const downloadVTT = () => {
+        const vttContent = generateVTT();
+        const blob = new Blob([vttContent], { type: 'text/vtt' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transcript-${roomId}-${new Date().toISOString().split('T')[0]}.vtt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success("VTT subtitle file downloaded!");
+    };
+
+    // Save transcript to database
+    const saveTranscriptToDatabase = async () => {
+        if (transcriptHistory.length === 0) {
+            toast.error("No transcript to save");
+            return;
+        }
+        try {
+            const vttContent = generateVTT();
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/transcripts`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Auth header would be added by middleware in production
+                },
+                body: JSON.stringify({
+                    roomId,
+                    content: vttContent,
+                    format: 'vtt'
+                })
+            });
+            if (response.ok) {
+                toast.success("Transcript saved to database!");
+            } else {
+                toast.error("Failed to save transcript");
+            }
+        } catch (error) {
+            console.error("Error saving transcript:", error);
+            toast.error("Failed to save transcript");
+        }
+    };
 
     // ICE config (add TURN as env for production)
     const ICE_CONFIG = {
@@ -1080,11 +1138,29 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
                                 <TabsContent value="transcript" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
                                     {/* Live Transcription Status */}
-                                    <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-                                        <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                                        <span className="text-white text-sm font-medium">
-                                            {isTranscribing ? "Live Transcription" : "Connecting..."}
-                                        </span>
+                                    <div className="flex items-center justify-between gap-3 mb-4 flex-shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                                            <span className="text-white text-sm font-medium">
+                                                {isTranscribing ? "Live Transcription" : "Connecting..."}
+                                            </span>
+                                        </div>
+                                        {transcriptHistory.length > 0 && (
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={downloadVTT}
+                                                    className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded-full transition-colors"
+                                                >
+                                                    Download VTT
+                                                </button>
+                                                <button
+                                                    onClick={saveTranscriptToDatabase}
+                                                    className="px-3 py-1 bg-white hover:bg-white/90 text-black text-xs rounded-full transition-colors"
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Transcript History */}

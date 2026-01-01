@@ -18,6 +18,7 @@ model User {
   participants Participant[]
   sessions     SessionLog[]
   recordings   Recording[]
+  transcripts  Transcript[]
 }
 
 /// Rooms created by users. A room has an owner.
@@ -81,3 +82,20 @@ model Recording {
   @@index([createdAt(sort: Desc)])
   @@map("recordings")
 }
+
+/// Transcripts stored in VTT subtitle format for podcast/video subtitles
+model Transcript {
+  id          String   @id @default(uuid())
+  roomId      String   @map("room_id")
+  userId      String   @map("user_id")
+  content     String   // VTT formatted content
+  format      String   @default("vtt") // "vtt" or "srt"
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([roomId])
+  @@index([userId])
+  @@map("transcripts")
+}
+
