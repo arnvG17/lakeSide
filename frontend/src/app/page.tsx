@@ -12,15 +12,15 @@ export default function Home() {
         <GradientBlinds
           gradientColors={["#110d11", "#0c0b0e", "#080707"]}
           angle={0}
-          noise={0.5}
+          noise={0.12}
           blindCount={16}
           blindMinWidth={60}
-          mouseDampening={0.4}
+          mouseDampening={0.12}
           mirrorGradient={false}
-          spotlightRadius={1}
-          spotlightSoftness={0.3}
-          spotlightOpacity={0.5}
-          distortAmount={0}
+          spotlightRadius={1.6}
+          spotlightSoftness={0.8}
+          spotlightOpacity={0.7}
+          distortAmount={35838}
           shineDirection="left"
         />
       </div>
@@ -60,7 +60,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col justify-center px-8 relative z-10 pt-20">
         <div className="max-w-7xl mx-auto w-full">
           {/* Main Headline */}
-          <div className="space-y-12">
+          <div className="bg-white/[0.02] border border-white/10 rounded-3xl p-12 backdrop-blur-sm space-y-12 max-w-6xl">
             <h2 className="text-6xl md:text-7xl lg:text-8xl font-normal leading-[0.95] tracking-tighter max-w-5xl">
               The definitive AI growth partner for fast-moving B2B companies.
             </h2>
