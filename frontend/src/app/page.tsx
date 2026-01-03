@@ -11,12 +11,12 @@ export default function Home() {
       <div className="absolute inset-0 z-0">
         <GradientBlinds
           gradientColors={["#110d11", "#0c0b0e", "#080707"]}
-          angle={90}
+          angle={0}
           noise={0.5}
           blindCount={16}
           blindMinWidth={60}
           mouseDampening={0.4}
-          mirrorGradient={true}
+          mirrorGradient={false}
           spotlightRadius={1}
           spotlightSoftness={0.3}
           spotlightOpacity={0.5}
