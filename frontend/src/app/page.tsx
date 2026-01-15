@@ -15,63 +15,63 @@ export default function Home() {
           noise={0.12}
           blindCount={16}
           blindMinWidth={60}
-          mouseDampening={0.12}
+          mouseDampening={0.8}
           mirrorGradient={false}
-          spotlightRadius={1.6}
-          spotlightSoftness={0.8}
-          spotlightOpacity={0.7}
-          distortAmount={35838}
+          spotlightRadius={0.8}
+          spotlightSoftness={1.3}
+          spotlightOpacity={0.8}
+          distortAmount={0}
           shineDirection="left"
         />
       </div>
 
       {/* Header */}
-      <header className="px-8 py-8 relative z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="fixed top-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-7xl z-50">
+        <div className="bg-white/[0.03] border border-white/10 rounded-full px-8 py-3 backdrop-blur-md flex items-center justify-between shadow-2xl shadow-black/50">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-sm transform rotate-45 group-hover:rotate-90 transition-transform duration-500">
+            <div className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-sm transform rotate-45 group-hover:rotate-90 transition-all duration-500">
               <span className="transform -rotate-45 font-bold">L</span>
             </div>
             <h1 className="text-xl font-bold tracking-tighter">LAKESIDE</h1>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-12">
-            <Link href="#" className="text-sm font-medium text-white/50 hover:text-white transition-colors">
+          <nav className="hidden md:flex items-center gap-12 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+            <Link href="#" className="hover:text-white transition-colors">
               Case studies
             </Link>
-            <Link href="#" className="text-sm font-medium text-white/50 hover:text-white transition-colors">
+            <Link href="#" className="hover:text-white transition-colors">
               About
             </Link>
           </nav>
 
           <Link
             href="/login"
-            className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-full text-sm font-bold hover:bg-white/90 transition-all group"
+            className="flex items-center gap-2 pl-6 pr-2 py-2 bg-white text-black rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/90 transition-all group"
           >
-            Let's talk
-            <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center group-hover:translate-x-1 transition-transform">
-              <ArrowRight className="w-3 h-3" />
+            Let&apos;s talk
+            <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center group-hover:translate-x-0.5 transition-transform duration-300">
+              <ArrowRight className="w-4 h-4" />
             </div>
           </Link>
         </div>
       </header>
 
       {/* Hero Section */}
-      <main className="flex-1 flex flex-col justify-center px-8 relative z-10 pt-20">
+      <main className="flex-1 flex flex-col justify-start px-8 relative z-10 pt-48 pb-32">
         <div className="max-w-7xl mx-auto w-full">
           {/* Main Headline */}
-          <div className="bg-white/[0.02] border border-white/10 rounded-3xl p-12 backdrop-blur-sm space-y-12 max-w-6xl">
-            <h2 className="text-6xl md:text-7xl lg:text-8xl font-normal leading-[0.95] tracking-tighter max-w-5xl">
-              The definitive AI growth partner for fast-moving B2B companies.
+          <div className="space-y-20">
+            <h2 className="text-6xl md:text-8xl lg:text-[110px] font-normal leading-[0.85] tracking-[-0.06em] max-w-6xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
+              The definitive AI growth partner for <span className="text-white/40">fast-moving</span> B2B companies.
             </h2>
 
             <Link
               href="/login"
-              className="inline-flex items-center gap-3 px-8 py-4 bg-white text-black rounded-full text-lg font-bold hover:bg-white/90 transition-all group shadow-2xl shadow-white/5"
+              className="inline-flex items-center gap-4 pl-10 pr-3 py-3 bg-white text-black rounded-full text-xl font-black hover:bg-white/90 transition-all group shadow-2xl shadow-white/10 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-200"
             >
-              Let's talk
-              <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                <ArrowRight className="w-4 h-4" />
+              Let&apos;s talk
+              <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center group-hover:translate-x-1 transition-transform duration-300">
+                <ArrowRight className="w-6 h-6" />
               </div>
             </Link>
           </div>
@@ -79,18 +79,18 @@ export default function Home() {
       </main>
 
       {/* Footer / Info */}
-      <footer className="px-8 py-12 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-8">
-          <div className="space-y-2">
-            <p className="text-sm text-white/30 font-medium tracking-widest uppercase">
+      <footer className="px-8 py-12 relative z-10 border-t border-white/5">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-12">
+          <div className="space-y-4">
+            <p className="text-[10px] text-white/30 font-black tracking-[0.4em] uppercase">
               Monochrome Precision
             </p>
-            <p className="text-white/60 max-w-sm text-sm">
+            <p className="text-white/50 max-w-sm text-sm leading-relaxed font-medium">
               Engineering the ultimate teaching experience through brutalist elegance and high-performance real-time systems.
             </p>
           </div>
 
-          <div className="flex gap-8 text-xs font-bold text-white/20 uppercase tracking-widest">
+          <div className="flex gap-12 text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">
             <span>© 2024 Lakeside</span>
             <span>Privacy</span>
             <span>Terms</span>

@@ -64,7 +64,7 @@ export default async function DashboardPage() {
                 </div>
             </header>
 
-            <main className="flex-1 px-8 py-12">
+            <main className="flex-1 px-8 py-12 relative z-10">
                 <div className="max-w-7xl mx-auto space-y-12">
                     {/* Welcome Section */}
                     <div className="flex items-end justify-between">
