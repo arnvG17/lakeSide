@@ -1051,28 +1051,28 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                     </div>
 
                     {/* Real-time Transcription Overlay */}
-                    <div className="absolute top-4 left-4 z-50 bg-black/70 p-4 rounded-lg backdrop-blur-md border border-white/10 max-w-md pointer-events-auto">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                            <span className="text-white font-medium text-sm">
+                    <div className="absolute bottom-32 sm:top-4 sm:bottom-auto left-2 sm:left-4 right-2 sm:right-auto z-50 bg-black/70 p-2 sm:p-4 rounded-lg backdrop-blur-md border border-white/10 max-w-[calc(100%-1rem)] sm:max-w-md pointer-events-auto">
+                        <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                            <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
+                            <span className="text-white font-medium text-xs sm:text-sm">
                                 {isTranscribing ? "Live Captions" : "Connecting..."}
                             </span>
                         </div>
 
                         {isTranscribing && !transcript && (
-                            <p className="text-white/40 italic text-sm animate-pulse">
+                            <p className="text-white/40 italic text-xs sm:text-sm animate-pulse">
                                 Listening...
                             </p>
                         )}
                         {transcript && (
-                            <p className="text-white/90 text-lg leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-2">
+                            <p className="text-white/90 text-sm sm:text-lg leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-2 line-clamp-2 sm:line-clamp-none">
                                 "{transcript}"
                             </p>
                         )}
                     </div>
 
                     {/* Thumbnails Strip */}
-                    <div className="h-24 sm:h-32 flex gap-2 overflow-x-auto pb-2 -webkit-overflow-scrolling-touch">
+                    <div className="h-20 sm:h-24 md:h-32 flex gap-2 overflow-x-auto pb-2 -webkit-overflow-scrolling-touch">
                         {participants.map(p => {
                             // Show all streams for each participant
                             if (p.streams && p.streams.length > 0) {
@@ -1082,7 +1082,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                         <div
                                             key={`${p.userId}-stream-${s.id}`}
                                             onClick={() => setFeaturedTile({ userId: p.userId, streamId: s.id })}
-                                            className={`relative flex-shrink-0 w-48 h-full bg-black rounded-lg overflow-hidden cursor-pointer transition-all ${isSelected ? 'ring-4 ring-white scale-105' : 'ring-2 ring-white/20 hover:ring-white/60'
+                                            className={`relative flex-shrink-0 w-32 sm:w-40 md:w-48 h-full bg-black rounded-lg overflow-hidden cursor-pointer transition-all ${isSelected ? 'ring-2 sm:ring-4 ring-white scale-105' : 'ring-1 sm:ring-2 ring-white/20 hover:ring-white/60'
                                                 }`}
                                         >
                                             <video
@@ -1123,7 +1123,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                             setFeaturedTile({ userId: p.userId, streamId: p.streams[0].id });
                                         }
                                     }}
-                                    className="relative flex-shrink-0 w-48 h-full bg-gradient-to-br from-zinc-900 to-black rounded-lg overflow-hidden cursor-pointer ring-2 ring-white/20 hover:ring-white/60 transition-all"
+                                    className="relative flex-shrink-0 w-32 sm:w-40 md:w-48 h-full bg-gradient-to-br from-zinc-900 to-black rounded-lg overflow-hidden cursor-pointer ring-1 sm:ring-2 ring-white/20 hover:ring-white/60 transition-all"
                                 >
                                     <div className="absolute inset-0 flex items-center justify-center">
                                         <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">

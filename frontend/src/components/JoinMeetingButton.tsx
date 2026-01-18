@@ -58,7 +58,7 @@ export function JoinMeetingButton() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <button className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium tracking-wide rounded-full transition-all duration-300 flex items-center gap-2">
+                <button className="px-6 py-3 bg-white/10 backdrop-blur-md shadow-xl hover:bg-white/20 hover:shadow-2xl hover:scale-105 active:scale-95 text-white text-sm font-medium tracking-wide rounded-full transition-all duration-300 flex items-center gap-2">
                     <LogIn className="w-4 h-4" />
                     Join Meeting
                 </button>
