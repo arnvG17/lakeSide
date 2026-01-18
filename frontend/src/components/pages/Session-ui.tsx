@@ -7,7 +7,6 @@ import { io } from "socket.io-client";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
-import { useSessionRecorder } from "@/hooks/useSessionRecorder";
 import { useTranscription } from "@/hooks/useTranscription";
 import { useFragmentedRecorder } from "@/hooks/useFragmentedRecorder";
 import { useFragmentUploader } from "@/hooks/useFragmentUploader";
@@ -83,16 +82,11 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const peersRef = useRef<Record<string, RTCPeerConnection>>({}); // userId -> pc
     const pendingOfferLock = useRef<Record<string, boolean>>({}); // avoid concurrent offers to same user
 
-    // Recorder Hook (legacy - for quick preview recordings)
-    const { isRecording, startRecording, stopRecording } = useSessionRecorder({
-        localStream: localMediaStreamRef.current,
-        // Flatten all remote streams from participants
-        remoteStreams: participants
-            .filter(p => !p.isLocal && p.streams)
-            .flatMap(p => p.streams || [])
-    });
+    // Recording timer state
+    const [recordingTime, setRecordingTime] = useState(0);
+    const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Fragmented Recorder (Riverside-style - for production quality)
+    // Fragmented Recorder (Riverside-style)
     const fragmentedRecorder = useFragmentedRecorder(
         (fragment) => fragmentUploader.enqueueFragment(fragment)
     );
@@ -995,13 +989,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // -------------------------
     const handleFragmentedRecord = async () => {
         if (fragmentedRecorder.state.isRecording) {
-            // Stop recording
+            // Stop recording and timer
+            if (recordingTimerRef.current) {
+                clearInterval(recordingTimerRef.current);
+                recordingTimerRef.current = null;
+            }
+
             await fragmentedRecorder.stopRecording();
             toast.success("Recording stopped. Uploading remaining fragments...");
 
             // Wait for uploads to complete
             await fragmentUploader.flushQueue();
-            toast.success("All fragments uploaded successfully!");
+            toast.success(`Recording saved! ${fragmentedRecorder.state.fragmentCount} fragments uploaded.`);
+            setRecordingTime(0);
         } else {
             // Start recording
             const stream = localMediaStreamRef.current;
@@ -1017,8 +1017,21 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             }
 
             await fragmentedRecorder.startRecording(stream, roomId, participantId);
-            toast.success("Recording started (Riverside-style fragmented)");
+            toast.success("Recording started");
+
+            // Start timer
+            setRecordingTime(0);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
         }
+    };
+
+    // Format time helper
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
     // -------------------------
@@ -1373,14 +1386,19 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                         <MonitorUp className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
 
-                    <button onClick={handleFragmentedRecord} className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${fragmentedRecorder.state.isRecording ? 'bg-red-500 text-white' : 'bg-white/10 text-white'}`}>
+                    <button onClick={handleFragmentedRecord} className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${fragmentedRecorder.state.isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-white/10 text-white'}`}>
                         <Circle className={`w-4 h-4 sm:w-5 sm:h-5 ${fragmentedRecorder.state.isRecording ? 'fill-current' : ''}`} />
-                        {fragmentUploader.isUploading && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[8px] font-bold flex items-center justify-center">
-                                {fragmentUploader.progress.uploaded}
-                            </span>
-                        )}
                     </button>
+
+                    {/* Recording timer and upload indicator */}
+                    {fragmentedRecorder.state.isRecording && (
+                        <div className="flex items-center gap-2 bg-red-500/20 px-3 py-1.5 rounded-full">
+                            <span className="text-red-400 text-sm font-mono">{formatTime(recordingTime)}</span>
+                            {fragmentUploader.isUploading && (
+                                <span className="text-blue-400 text-xs">↑{fragmentUploader.progress.uploaded}</span>
+                            )}
+                        </div>
+                    )}
 
                     <div className="w-px h-6 sm:h-8 bg-white/10 mx-0.5 sm:mx-1" />
 

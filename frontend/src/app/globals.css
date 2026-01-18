@@ -3,6 +3,43 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Supreme Font */
+@font-face {
+  font-family: 'Supreme';
+  src: url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Light.woff2') format('woff2'),
+    url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Supreme';
+  src: url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Regular.woff2') format('woff2'),
+    url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Supreme';
+  src: url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Medium.woff2') format('woff2'),
+    url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Supreme';
+  src: url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Bold.woff2') format('woff2'),
+    url('/Supreme_Complete/Supreme_Complete/Fonts/WEB/fonts/Supreme-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -119,6 +156,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

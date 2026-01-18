@@ -7,6 +7,7 @@ const { router: roomRoutes, roomSocketHandler } = require('./routes/room');
 const authRoutes = require('./routes/auth');
 const transcriptRoutes = require('./routes/transcript');
 const uploadRoutes = require('./routes/upload');
+const recordingsRoutes = require('./routes/recordings');
 
 const app = express();
 const server = http.createServer(app);
@@ -26,6 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/transcripts', transcriptRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/recordings', recordingsRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {

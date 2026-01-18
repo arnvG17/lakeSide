@@ -32,11 +32,11 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#080707] text-white flex flex-col relative overflow-hidden font-stardom">
+    <div className="min-h-screen w-full bg-black text-[#FAF9F6] flex flex-col relative overflow-hidden font-stardom">
       {/* Dynamic Background */}
       <div className="absolute inset-0 z-0 opacity-50">
         <GradientBlinds
-          gradientColors={["#110d11", "#0c0b0e", "#080707"]}
+          gradientColors={["#000000", "#18181b", "#000000"]}
           angle={-45}
           noise={0.4}
           blindCount={12}
@@ -51,18 +51,20 @@ function LoginContent() {
         />
       </div>
 
+
+
       {/* Header */}
       <header className="px-8 py-8 relative z-10">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-sm transform rotate-45 group-hover:rotate-90 transition-transform duration-500">
+            <div className="w-8 h-8 flex items-center justify-center bg-[#FAF9F6] text-black rounded-sm transform rotate-45 group-hover:rotate-90 transition-transform duration-500">
               <span className="transform -rotate-45 font-bold">L</span>
             </div>
             <h1 className="text-xl font-bold tracking-tighter">LAKESIDE</h1>
           </Link>
           <Link
             href="/"
-            className="flex items-center gap-2 px-6 py-2.5 bg-white/5 border border-white/10 text-white text-sm font-medium rounded-full hover:bg-white/10 transition-all duration-300"
+            className="flex items-center gap-2 px-6 py-2.5 bg-[#FAF9F6]/5 border border-[#FAF9F6]/10 text-[#FAF9F6] text-sm font-medium rounded-full hover:bg-[#FAF9F6]/10 transition-all duration-300"
           >
             Back to Home
           </Link>
@@ -74,18 +76,14 @@ function LoginContent() {
 
         <div className="max-w-md w-full relative z-10">
           {/* Login Card */}
-          <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-12 backdrop-blur-sm">
+          <div className="bg-[#FAF9F6]/[0.02] border border-[#FAF9F6]/10 rounded-2xl p-12 backdrop-blur-sm">
             {/* Header */}
             <div className="text-center space-y-2 mb-10">
-              <div className="inline-block px-4 py-1.5 bg-white/5 border border-white/10 rounded-full mb-4">
-                <span className="text-xs font-medium tracking-widest text-white/60">
-                  SESSION STUDIO
-                </span>
-              </div>
-              <h2 className="text-3xl font-light tracking-tight">
+
+              <h2 className="text-3xl font-light text-white tracking-tight">
                 Welcome Back
               </h2>
-              <p className="text-sm text-white/40 font-light">
+              <p className="text-sm text-[#FAF9F6]/60 font-light">
                 Sign in to access your session room
               </p>
             </div>
@@ -94,7 +92,7 @@ function LoginContent() {
             <button
               onClick={loginWithGoogle}
               disabled={isLoading}
-              className="group w-full px-8 py-4 bg-white text-black text-sm font-medium tracking-wide rounded-full hover:bg-white/90 transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_32px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group w-full px-8 py-4 bg-[#ea580c] text-black text-sm font-medium tracking-wide rounded-full hover:bg-[#FAF9F6]/90 transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_32px_rgba(250,249,246,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <span>Signing In...</span>
@@ -127,55 +125,17 @@ function LoginContent() {
             {/* Divider */}
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10"></div>
+                <div className="w-full border-t border-[#FAF9F6]/10"></div>
               </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="px-4 bg-black text-white/40 tracking-widest">
-                  NEW USER?
-                </span>
-              </div>
+
             </div>
 
             {/* Register Link */}
-            <div className="text-center">
-              <p className="text-sm text-white/40">
-                Don't have an account?{" "}
-                <Link
-                  href="/register"
-                  className="text-white font-medium hover:text-white/80 transition-colors duration-300"
-                >
-                  Create Account
-                </Link>
-              </p>
-            </div>
+
           </div>
 
-          {/* Footer Note */}
-          <p className="text-center text-xs text-white/30 font-light mt-8 tracking-wide">
-            By signing in, you agree to our Terms of Service and Privacy Policy
-          </p>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10 px-8 py-6 relative z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-sm text-white/40">
-          <p className="font-light tracking-wide">
-            © 2024 LAKESIDE. Brutally elegant.
-          </p>
-          <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-white transition-colors duration-300">
-              Documentation
-            </a>
-            <a href="#" className="hover:text-white transition-colors duration-300">
-              Support
-            </a>
-            <a href="#" className="hover:text-white transition-colors duration-300">
-              GitHub
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

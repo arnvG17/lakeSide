@@ -60,10 +60,23 @@ export function useFragmentUploader(
      * Get presigned URL from backend
      */
     const getPresignedUrl = useCallback(async (fragment: RecordingFragment): Promise<{ uploadUrl: string; key: string }> => {
+        // Get auth token from Supabase
+        const { createClient } = await import('@/utils/supabase/client');
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+            console.error('[FragmentUploader] No auth token available');
+            throw new Error('Not authenticated');
+        }
+
+        console.log(`[FragmentUploader] Requesting presigned URL for fragment ${fragment.index}`);
+
         const response = await fetch(`${backendUrl}/api/upload/presign`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
                 sessionId: fragment.sessionId,
@@ -75,10 +88,14 @@ export function useFragmentUploader(
         });
 
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[FragmentUploader] Presigned URL error: ${response.status} - ${errorText}`);
             throw new Error(`Failed to get presigned URL: ${response.statusText}`);
         }
 
-        return response.json();
+        const data = await response.json();
+        console.log(`[FragmentUploader] Got presigned URL for fragment ${fragment.index}`);
+        return data;
     }, [backendUrl]);
 
     /**

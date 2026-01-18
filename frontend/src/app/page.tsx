@@ -2,119 +2,124 @@
 
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
-import { useEffect, useState } from "react"
-import GradientBlinds from "@/components/ui/GradientBlinds"
+import { ShaderBackground } from "@/components/ui/hero-shader"
+import { PixelTrail } from "@/components/ui/pixel-trail"
+import { useScreenSize } from "@/components/hooks/use-screen-size"
+import { motion } from "framer-motion"
 
 export default function Home() {
-  const [scrollY, setScrollY] = useState(0)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrollY(window.scrollY)
-    }
-
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [])
+  const screenSize = useScreenSize()
 
   return (
-    <div className="min-h-screen w-full bg-[#080707] text-white flex flex-col relative overflow-hidden font-stardom">
-      {/* Dynamic Background with Parallax */}
-      <div
-        className="absolute inset-0 z-0 transition-transform duration-100"
-        style={{ transform: `translateY(${scrollY * 0.3}px)` }}
-      >
-        <GradientBlinds
-          gradientColors={["#110d11", "#0c0b0e", "#080707"]}
-          angle={0}
-          noise={0.12}
-          blindCount={16}
-          blindMinWidth={60}
-          mouseDampening={0.8}
-          mirrorGradient={false}
-          spotlightRadius={0.8}
-          spotlightSoftness={1.3}
-          spotlightOpacity={0.8}
-          distortAmount={0}
-          shineDirection="left"
+    <ShaderBackground>
+      {/* Pixel Trail Cursor Effect */}
+      <div className="absolute inset-0 z-10">
+        <PixelTrail
+          pixelSize={screenSize.lessThan("md") ? 48 : 64}
+          fadeDuration={0}
+          delay={800}
+          pixelClassName="rounded-full bg-orange-500/40"
         />
       </div>
-
-      {/* Header */}
-      <header className="fixed top-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-7xl z-50">
-        <div className="bg-white/[0.03] border border-white/10 rounded-full px-4 py-2 sm:px-8 sm:py-3 backdrop-blur-md flex items-center justify-between shadow-2xl shadow-black/50">
-          <Link href="/" className="flex items-center gap-2 sm:gap-3 group">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-white text-black rounded-sm transform rotate-45 group-hover:rotate-90 transition-all duration-500">
-              <span className="transform -rotate-45 font-bold text-xs sm:text-base">L</span>
-            </div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tighter">LAKESIDE</h1>
+      {/* Floating Navbar */}
+      <header className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-7xl" style={{ fontFamily: 'Supreme, sans-serif' }}>
+        <div className="flex md:grid md:grid-cols-[1fr_auto_1fr] items-center justify-between px-6 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg shadow-black/10 transition-all duration-300 hover:bg-white/15">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 sm:gap-3 group justify-self-start">
+            <span className="text-3xl font-bold tracking-tighter text-black">Lakeside</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-12 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
-            <Link href="#" className="hover:text-white transition-colors">
-
-            </Link>
-            <Link href="#" className="hover:text-white transition-colors">
-
-            </Link>
+          {/* Navigation */}
+          <nav className="hidden md:flex items-center space-x-1 justify-self-center">
+            {["Features", "Pricing", "Docs"].map((item) => (
+              <Link
+                key={item}
+                href="#"
+                className="text-black/70 hover:text-black text-sm font-medium px-5 py-2 rounded-full hover:bg-white/5 transition-all duration-200"
+              >
+                {item}
+              </Link>
+            ))}
           </nav>
 
-          <Link
-            href="/login"
-            className="flex items-center gap-1.5 sm:gap-2 pl-4 pr-1.5 py-1.5 sm:pl-6 sm:pr-2 sm:py-2 bg-white text-black rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-white/90 transition-all group"
-          >
-            <span className="hidden sm:inline">Let&apos;s talk</span>
-            <span className="sm:hidden">Start</span>
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-black text-white flex items-center justify-center group-hover:translate-x-0.5 transition-transform duration-300">
-              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
-            </div>
-          </Link>
+          {/* Login Button Group */}
+          <div id="gooey-btn" className="relative flex items-center group justify-self-end" style={{ filter: "url(#gooey-filter)" }}>
+            <Link
+              href="/login"
+              className="absolute right-0 px-3 py-2.5 rounded-full bg-black text-white font-medium text-sm transition-all duration-300 hover:bg-white/90 cursor-pointer h-10 flex items-center justify-center -translate-x-10 group-hover:-translate-x-20 z-0"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/login"
+              className="px-8 py-2.5 rounded-full bg-black text-white font-medium text-sm transition-all duration-300 hover:bg-white/90 cursor-pointer h-10 flex items-center z-10"
+            >
+              Get Started
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* Hero Section with Parallax */}
-      <main className="flex-1 flex flex-col justify-start px-4 sm:px-8 relative z-10 pt-28 sm:pt-40 md:pt-48 pb-16 sm:pb-32">
-        <div className="max-w-7xl mx-auto w-full">
-          {/* Main Headline with Parallax */}
-          <div
-            className="space-y-10 sm:space-y-20"
-            style={{ transform: `translateY(${scrollY * -0.15}px)` }}
+      {/* Hero Content */}
+      <main className="absolute bottom-12 left-8 sm:bottom-24 sm:left-20 z-20 max-w-4xl" style={{ fontFamily: 'Supreme, sans-serif' }}>
+        <div className="text-left">
+          {/* Badge */}
+          <motion.div
+            initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+            className="inline-flex items-center px-5 py-2 rounded-full bg-white/5 backdrop-blur-md mb-8 border border-white/10 shadow-lg shadow-black/20"
           >
-            <h2 className="text-3xl sm:text-6xl md:text-8xl lg:text-[110px] font-normal leading-[1.1] sm:leading-[0.85] tracking-[-0.04em] sm:tracking-[-0.06em] max-w-6xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
-              <span className="block">The ultimate</span>
-              <span className="block">studio for</span>
-              <span className="block text-white/40">podcasters</span>
-              <span className="block sm:inline">and educators.</span>
-            </h2>
 
+          </motion.div>
+
+          {/* Main Heading */}
+          <motion.h1
+            initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.4 }}
+            className="text-5xl sm:text-6xl md:text-7xl font-medium leading-[0.9] tracking-tight text-black mb-8"
+          >
+            The ultimate studio
+            <br />
+            <span className="text-[#ea580c]">for creators.</span>
+          </motion.h1>
+
+          {/* Description */}
+          <motion.p
+            initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
+            className="text-lg sm:text-xl text-black/50 mb-10 leading-relaxed max-w-2xl font-light"
+          >
+            Professional-grade recording with local-first quality,
+            real-time transcription, and seamless collaboration.
+          </motion.p>
+
+          {/* Buttons */}
+          <motion.div
+            initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.8 }}
+            className="flex items-center gap-6 flex-wrap"
+          >
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 sm:gap-4 pl-6 sm:pl-10 pr-2 sm:pr-3 py-2 sm:py-3 bg-white text-black rounded-full text-base sm:text-xl font-black hover:bg-white/90 transition-all group shadow-2xl shadow-white/10 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-200"
+              className="px-10 py-5 rounded-full bg-black text-white font-semibold text-base transition-all duration-300 hover:bg-[#ea580c] hover:text-white inline-flex items-center gap-3 shadow-xl shadow-black/20 hover:scale-105"
             >
-              Let&apos;s talk
-              <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-black text-white flex items-center justify-center group-hover:translate-x-1 transition-transform duration-300">
-                <ArrowRight className="w-4 h-4 sm:w-6 sm:h-6" />
-              </div>
+
+              Get Started
+              <ArrowRight className="w-5 h-5" />
             </Link>
-          </div>
+            <Link
+              href="#"
+              className="px-10 py-5 rounded-full bg-white/5 border border-white/10 text-white font-medium text-base transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:scale-105"
+            >
+              Learn More
+            </Link>
+          </motion.div>
         </div>
       </main>
-
-      {/* Footer / Info */}
-      <footer className="px-4 sm:px-8 py-8 sm:py-12 relative z-10 border-t border-white/5">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-12">
-          <div className="space-y-4">
-            <p className="text-[10px] text-white/30 font-black tracking-[0.4em] uppercase">
-              Monochrome Precision
-            </p>
-
-          </div>
-
-          <div className="flex gap-12 text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">
-
-          </div>
-        </div>
-      </footer>
-    </div>
+    </ShaderBackground>
   )
 }

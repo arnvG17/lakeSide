@@ -5,6 +5,7 @@ import { Plus, LogOut } from 'lucide-react'
 import { logout, getRecordings, getPreviousMeetings } from './actions'
 import { JoinMeetingButton } from '@/components/JoinMeetingButton'
 import { MeetingsList } from '@/components/MeetingsList'
+import { RecordingsList } from '@/components/RecordingsList'
 import Beams from '@/components/ui/Beams'
 
 export default async function DashboardPage() {
@@ -94,35 +95,7 @@ export default async function DashboardPage() {
 
                     {/* Recordings Section */}
                     <div>
-                        <h3 className="text-xl font-light tracking-wide mb-6 text-white/80">Recordings</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {recordings.map((recording) => (
-                                <div
-                                    key={recording.id}
-                                    className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] transition-all duration-300 cursor-pointer"
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                                            <div className="w-3 h-3 rounded-sm bg-white/40" />
-                                        </div>
-                                        <span className="text-xs font-mono text-white/30">{recording.duration}</span>
-                                    </div>
-                                    <h3 className="text-lg font-light mb-1">{recording.name}</h3>
-                                    <p className="text-xs text-white/40">{recording.date}</p>
-                                </div>
-                            ))}
-
-                            {/* Empty State Placeholder */}
-                            <div className="border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center min-h-[200px] hover:border-white/20 transition-colors">
-                                <p className="text-sm text-white/40 mb-4">Start a new recording session</p>
-                                <Link
-                                    href="/generate"
-                                    className="text-xs font-medium text-white border-b border-white/20 pb-0.5 hover:text-white/80 hover:border-white/40 transition-all"
-                                >
-                                    Create Session
-                                </Link>
-                            </div>
-                        </div>
+                        <RecordingsList />
                     </div>
                 </div>
             </main>
