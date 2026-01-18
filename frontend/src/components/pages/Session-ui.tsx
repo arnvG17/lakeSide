@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useSessionRecorder } from "@/hooks/useSessionRecorder";
 import { useTranscription } from "@/hooks/useTranscription";
+import { useFragmentedRecorder } from "@/hooks/useFragmentedRecorder";
+import { useFragmentUploader } from "@/hooks/useFragmentUploader";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -81,7 +83,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const peersRef = useRef<Record<string, RTCPeerConnection>>({}); // userId -> pc
     const pendingOfferLock = useRef<Record<string, boolean>>({}); // avoid concurrent offers to same user
 
-    // Recorder Hook
+    // Recorder Hook (legacy - for quick preview recordings)
     const { isRecording, startRecording, stopRecording } = useSessionRecorder({
         localStream: localMediaStreamRef.current,
         // Flatten all remote streams from participants
@@ -89,6 +91,12 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             .filter(p => !p.isLocal && p.streams)
             .flatMap(p => p.streams || [])
     });
+
+    // Fragmented Recorder (Riverside-style - for production quality)
+    const fragmentedRecorder = useFragmentedRecorder(
+        (fragment) => fragmentUploader.enqueueFragment(fragment)
+    );
+    const fragmentUploader = useFragmentUploader(fragmentedRecorder.state.sessionId);
 
     // Transcription Hook
     // Replace address with your public IP if testing on other devices
@@ -983,6 +991,37 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     };
 
     // -------------------------
+    // Fragmented Recording Control
+    // -------------------------
+    const handleFragmentedRecord = async () => {
+        if (fragmentedRecorder.state.isRecording) {
+            // Stop recording
+            await fragmentedRecorder.stopRecording();
+            toast.success("Recording stopped. Uploading remaining fragments...");
+
+            // Wait for uploads to complete
+            await fragmentUploader.flushQueue();
+            toast.success("All fragments uploaded successfully!");
+        } else {
+            // Start recording
+            const stream = localMediaStreamRef.current;
+            if (!stream) {
+                toast.error("No media stream available");
+                return;
+            }
+
+            const participantId = myUserIdRef.current;
+            if (!participantId) {
+                toast.error("User ID not available");
+                return;
+            }
+
+            await fragmentedRecorder.startRecording(stream, roomId, participantId);
+            toast.success("Recording started (Riverside-style fragmented)");
+        }
+    };
+
+    // -------------------------
     // Render helpers
     // -------------------------
     // assign srcObject to <video> when element mounts
@@ -1020,12 +1059,22 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
                                 if (participant && stream) {
                                     return (
-                                        <div className="relative w-full h-full bg-black">
+                                        <div className="relative w-full h-full bg-black" key={`featured-${featuredTile.userId}-${featuredTile.streamId}`}>
                                             <video
+                                                key={`video-${featuredTile.streamId}`}
                                                 autoPlay
                                                 playsInline
                                                 muted={participant.isLocal}
-                                                ref={el => attachStreamToVideo(el, stream)}
+                                                ref={el => {
+                                                    if (el && stream) {
+                                                        el.srcObject = stream;
+                                                        el.play().catch(() => { });
+                                                    }
+                                                }}
+                                                onLoadedMetadata={(e) => {
+                                                    const video = e.currentTarget;
+                                                    video.play().catch(() => { });
+                                                }}
                                                 className="w-full h-full object-contain"
                                             />
                                             <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
@@ -1324,8 +1373,13 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                         <MonitorUp className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
 
-                    <button onClick={isRecording ? stopRecording : startRecording} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isRecording ? 'bg-red-500 text-white' : 'bg-white/10 text-white'}`}>
-                        <Circle className={`w-4 h-4 sm:w-5 sm:h-5 ${isRecording ? 'fill-current' : ''}`} />
+                    <button onClick={handleFragmentedRecord} className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${fragmentedRecorder.state.isRecording ? 'bg-red-500 text-white' : 'bg-white/10 text-white'}`}>
+                        <Circle className={`w-4 h-4 sm:w-5 sm:h-5 ${fragmentedRecorder.state.isRecording ? 'fill-current' : ''}`} />
+                        {fragmentUploader.isUploading && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full text-[8px] font-bold flex items-center justify-center">
+                                {fragmentUploader.progress.uploaded}
+                            </span>
+                        )}
                     </button>
 
                     <div className="w-px h-6 sm:h-8 bg-white/10 mx-0.5 sm:mx-1" />

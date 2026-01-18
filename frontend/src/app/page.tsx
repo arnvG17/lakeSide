@@ -2,13 +2,28 @@
 
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
+import { useEffect, useState } from "react"
 import GradientBlinds from "@/components/ui/GradientBlinds"
 
 export default function Home() {
+  const [scrollY, setScrollY] = useState(0)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY)
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
   return (
     <div className="min-h-screen w-full bg-[#080707] text-white flex flex-col relative overflow-hidden font-stardom">
-      {/* Dynamic Background */}
-      <div className="absolute inset-0 z-0">
+      {/* Dynamic Background with Parallax */}
+      <div
+        className="absolute inset-0 z-0 transition-transform duration-100"
+        style={{ transform: `translateY(${scrollY * 0.3}px)` }}
+      >
         <GradientBlinds
           gradientColors={["#110d11", "#0c0b0e", "#080707"]}
           angle={0}
@@ -37,10 +52,10 @@ export default function Home() {
 
           <nav className="hidden md:flex items-center gap-12 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
             <Link href="#" className="hover:text-white transition-colors">
-              Case studies
+
             </Link>
             <Link href="#" className="hover:text-white transition-colors">
-              About
+
             </Link>
           </nav>
 
@@ -57,13 +72,19 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Section with Parallax */}
       <main className="flex-1 flex flex-col justify-start px-4 sm:px-8 relative z-10 pt-28 sm:pt-40 md:pt-48 pb-16 sm:pb-32">
         <div className="max-w-7xl mx-auto w-full">
-          {/* Main Headline */}
-          <div className="space-y-10 sm:space-y-20">
-            <h2 className="text-3xl sm:text-6xl md:text-8xl lg:text-[110px] font-normal leading-[0.9] sm:leading-[0.85] tracking-[-0.04em] sm:tracking-[-0.06em] max-w-6xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
-              The definitive AI growth partner for <span className="text-white/40">fast-moving</span> B2B companies.
+          {/* Main Headline with Parallax */}
+          <div
+            className="space-y-10 sm:space-y-20"
+            style={{ transform: `translateY(${scrollY * -0.15}px)` }}
+          >
+            <h2 className="text-3xl sm:text-6xl md:text-8xl lg:text-[110px] font-normal leading-[1.1] sm:leading-[0.85] tracking-[-0.04em] sm:tracking-[-0.06em] max-w-6xl animate-in fade-in slide-in-from-bottom-8 duration-1000">
+              <span className="block">The ultimate</span>
+              <span className="block">studio for</span>
+              <span className="block text-white/40">podcasters</span>
+              <span className="block sm:inline">and educators.</span>
             </h2>
 
             <Link
@@ -86,15 +107,11 @@ export default function Home() {
             <p className="text-[10px] text-white/30 font-black tracking-[0.4em] uppercase">
               Monochrome Precision
             </p>
-            <p className="text-white/50 max-w-sm text-sm leading-relaxed font-medium">
-              Engineering the ultimate teaching experience through brutalist elegance and high-performance real-time systems.
-            </p>
+
           </div>
 
           <div className="flex gap-12 text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">
-            <span>© 2024 Lakeside</span>
-            <span>Privacy</span>
-            <span>Terms</span>
+
           </div>
         </div>
       </footer>

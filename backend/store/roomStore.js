@@ -21,9 +21,9 @@ const RoomStore = {
 
         delete rooms[roomId].users[userId];
 
-        if (Object.keys(rooms[roomId].users).length === 0) {
-            delete rooms[roomId];
-        }
+        // NOTE: We intentionally do NOT delete the room when empty
+        // This preserves chat and transcript history across page reloads
+        // The room data will persist until server restart
     },
 
     updateUser(roomId, userId, partialState) {

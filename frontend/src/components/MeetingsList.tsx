@@ -69,7 +69,7 @@ export function MeetingsList({ meetings, recordings }: MeetingsListProps) {
                 <div
                     key={meeting.id}
                     onClick={() => handleCardClick(meeting)}
-                    className="group bg-white/10 backdrop-blur-md shadow-xl rounded-2xl p-6 hover:bg-white/20 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer"
+                    className="group bg-white/[0.02] border border-white/10 rounded-2xl p-6 hover:bg-white/[0.04] hover:border-white/20 transition-all duration-300 cursor-pointer"
                 >
                     <h3 className="text-lg font-light mb-1">
                         {meeting.roomName || "Untitled Meeting"}
