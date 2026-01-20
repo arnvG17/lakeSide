@@ -49,8 +49,10 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isPanelOpen, setIsPanelOpen] = useState(true);
-    const [activeTab, setActiveTab] = useState("transcript");
+    const [activeTab, setActiveTab] = useState("chat");
     const [isMobile, setIsMobile] = useState(false);
+
+
 
     // participants & chat
     const screenSize = useScreenSize();
@@ -72,6 +74,16 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
     // featured tile state (Google Meet style)
     const [featuredTile, setFeaturedTile] = useState<{ userId: string; streamId: string } | null>(null);
+
+    // Auto-feature the first available stream if nothing is featured
+    useEffect(() => {
+        if (!featuredTile) {
+            const firstWithStream = participants.find(p => p.streams && p.streams.length > 0);
+            if (firstWithStream && firstWithStream.streams && firstWithStream.streams.length > 0) {
+                setFeaturedTile({ userId: firstWithStream.userId, streamId: firstWithStream.streams[0].id });
+            }
+        }
+    }, [participants, featuredTile]);
 
     // persistent refs
     const socketRef = useRef<any>(null);
@@ -251,31 +263,13 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             const index = prev.findIndex(x => x.userId === p.userId);
             if (index === -1) return [...prev, p];
 
-            // Merge, but preserve existing streams if incoming has none/empty
             const existing = prev[index];
-            const merged = { ...existing, ...p };
-
-            // If we already have streams and the update has empty streams (likely just metadata update), keep ours
-            // UNLESS it's a local participant update where we explicitly passed streams
-            if (p.isLocal) {
-                // For local, we always trust the latest passed object because we control it
-                // But we must be careful not to overwrite if we passed partial data
-                if (p.streams !== undefined) {
-                    merged.streams = p.streams;
-                } else {
-                    merged.streams = existing.streams;
-                }
-            } else {
-                // For remote, if metadata update (no streams property), keep existing streams
-                if (!p.streams || p.streams.length === 0) {
-                    // If p.streams is explicit empty array, it might mean they stopped sharing?
-                    // But usually metadata events (user-joined) don't carry streams
-                    if (!p.streams) merged.streams = existing.streams;
-                }
-            }
+            // If the incoming update has no streams, preserve the existing ones.
+            // This prevents metadata updates (like user joining) from wiping active video streams.
+            const streams = (p.streams && p.streams.length > 0) ? p.streams : existing.streams;
 
             const newArr = [...prev];
-            newArr[index] = merged;
+            newArr[index] = { ...existing, ...p, streams };
             return newArr;
         });
     };
@@ -581,33 +575,31 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             const supabase = createClient();
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
-            if (!token) {
-                toast.error("Login required");
-                return;
-            }
 
-            // set my user id
-            myUserIdRef.current = session.user.id;
+            // set my user id - handle guest case
+            const myId = session?.user.id || `guest-${Math.random().toString(36).slice(2, 11)}`;
+            myUserIdRef.current = myId;
 
-            // Media is already initialized by the other useEffect
-            // We just ensure the placeholder is there with whatever streams we have
+            // upsert local participant early
             upsertParticipant({
-                userId: session.user.id,
-                email: session.user.email,
+                userId: myId,
+                email: session?.user.email || "Guest Participant",
                 isLocal: true,
                 streams: localMediaStreamRef.current ? [localMediaStreamRef.current] : []
             });
 
             // connect
             const s = io(process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001", {
-                auth: { token },
+                auth: { token: token || "guest" },
                 transports: ["websocket"]
             });
             socketRef.current = s;
 
             s.on("connect", () => {
                 setIsConnected(true);
+                // Revert to original backend-compatible payload
                 s.emit("join-room", { roomId });
+
                 // Request chat and transcript history
                 s.emit("request-chat-history", { roomId });
                 s.emit("request-transcript-history", { roomId });
@@ -1160,7 +1152,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                                 <div className="flex items-center gap-3 mb-2">
                                     <div className={`w-1.5 h-1.5 rounded-full ${isTranscribing ? 'bg-[#ea580c] shadow-[0_0_12px_#ea580c]' : 'bg-white/20'}`} />
                                     <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/40">
-                                        Intelligence Engine {isTranscribing ? "Active" : "Standby"}
+                                        Live Transcription {isTranscribing ? "Active" : "Standby"}
                                     </span>
                                 </div>
 
@@ -1270,41 +1262,50 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
                                     {isMobile ? (
                                         <div className="flex-1 flex flex-col w-full overflow-hidden min-h-0">
-                                            <div className="flex-none flex items-center justify-between mb-4">
-                                                <h2 className="text-white/40 text-xs uppercase tracking-widest font-semibold">Live Chat</h2>
-                                                <span className="text-white/20 text-[10px] tracking-widest">{participants.length} CONNS</span>
+                                            <div className="flex-none flex items-center justify-between mb-6">
+                                                <h2 className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold">Broadcast Loop</h2>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-[#ea580c] animate-pulse" />
+                                                    <span className="text-white/20 text-[10px] tracking-widest">{participants.length} CONNS</span>
+                                                </div>
                                             </div>
 
                                             <div
-                                                className="flex-1 overflow-y-auto min-h-0 space-y-6 pr-2 pb-4 touch-pan-y scrollbar-hide"
+                                                className="flex-1 overflow-y-auto min-h-0 space-y-6 pr-2 pb-4 scrollbar-hide"
                                                 ref={chatScrollRef}
-                                                style={{ WebkitOverflowScrolling: 'touch' }}
                                             >
                                                 {chatMessages.length === 0 && (
-                                                    <div className="text-white/10 text-[10px] uppercase tracking-widest text-center mt-10">No broadcast data</div>
+                                                    <div className="text-white/10 text-[10px] uppercase tracking-widest text-center mt-20 font-light">Awaiting broadcast...</div>
                                                 )}
-                                                {chatMessages.map((msg, idx) => (
-                                                    <div key={idx} className="flex flex-col gap-2">
-                                                        <div className="flex items-baseline justify-between">
-                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">{msg.email?.split('@')[0]}</span>
-                                                            <span className="text-[8px] tracking-widest text-white/20">
-                                                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                        </div>
-                                                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-light text-white/90 break-words leading-relaxed">{msg.text}</div>
-                                                    </div>
-                                                ))}
+                                                <AnimatePresence initial={false}>
+                                                    {chatMessages.map((msg, idx) => (
+                                                        <motion.div
+                                                            key={idx}
+                                                            initial={{ opacity: 0, x: 10 }}
+                                                            animate={{ opacity: 1, x: 0 }}
+                                                            className="group/msg flex flex-col gap-2"
+                                                        >
+                                                            <div className="flex items-baseline justify-between opacity-40 group-hover/msg:opacity-100 transition-opacity">
+                                                                <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">{msg.email?.split('@')[0]}</span>
+                                                                <span className="text-[8px] tracking-widest text-white/20">
+                                                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                            <div className="bg-white/5 border border-white/5 rounded-3xl rounded-tl-none p-4 text-sm font-light text-white/80 leading-relaxed">{msg.text}</div>
+                                                        </motion.div>
+                                                    ))}
+                                                </AnimatePresence>
                                             </div>
 
-                                            <form onSubmit={handleSendMessage} className="flex-none mt-6 flex gap-3 w-full pb-2">
+                                            <form onSubmit={handleSendMessage} className="mt-6 flex gap-3 pb-2">
                                                 <input
                                                     value={chatInput}
                                                     onChange={(e) => setChatInput(e.target.value)}
                                                     type="text"
-                                                    className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-4 text-sm text-white focus:outline-none focus:border-[#ea580c]/50 transition-all placeholder:text-white/20"
-                                                    placeholder="Encrypt signal..."
+                                                    className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-4 text-sm text-white focus:outline-none focus:border-[#ea580c]/50 transition-all placeholder:text-white/10"
+                                                    placeholder="Send broadcast..."
                                                 />
-                                                <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black w-12 h-12 rounded-full flex items-center justify-center hover:bg-[#ea580c] hover:text-white transition-all disabled:opacity-50">
+                                                <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[#ea580c] hover:text-white transition-all disabled:opacity-30">
                                                     <ArrowRight size={20} />
                                                 </button>
                                             </form>
