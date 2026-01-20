@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, Circle, PhoneOff, Menu } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Circle, PhoneOff, Menu, X, ArrowRight } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { io } from "socket.io-client";
 import { createClient } from "@/utils/supabase/client";
@@ -10,12 +10,11 @@ import dynamic from "next/dynamic";
 import { useTranscription } from "@/hooks/useTranscription";
 import { useFragmentedRecorder } from "@/hooks/useFragmentedRecorder";
 import { useFragmentUploader } from "@/hooks/useFragmentUploader";
-
-// Dynamically import Excalidraw to avoid SSR issues
-const Excalidraw = dynamic(
-    async () => (await import("@excalidraw/excalidraw")).Excalidraw,
-    { ssr: false }
-);
+import { ShaderBackground } from "@/components/ui/hero-shader";
+import { PixelTrail } from "@/components/ui/pixel-trail";
+import { useScreenSize } from "@/components/hooks/use-screen-size";
+import { motion, AnimatePresence } from "framer-motion";
+import { AnnotationBoard } from "@/components/AnnotationBoard";
 
 /**
  * SessionRoom (complete rewrite)
@@ -54,6 +53,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     const [isMobile, setIsMobile] = useState(false);
 
     // participants & chat
+    const screenSize = useScreenSize();
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [chatMessages, setChatMessages] = useState<any[]>([]);
     const [chatInput, setChatInput] = useState("");
@@ -965,14 +965,9 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // Detect mobile screen
     // -------------------------
     useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+        const isMob = screenSize.lessThan("md");
+        setIsMobile(isMob);
+    }, [screenSize]);
 
     // -------------------------
     // chat send
@@ -1082,361 +1077,440 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // UI render
     // -------------------------
     return (
-        <div className="h-screen w-full bg-black flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
-            {/* Local preview (hidden small preview) */}
-            <video ref={localPreviewRef} autoPlay muted playsInline className="hidden" />
+        <ShaderBackground>
+            <div className="absolute inset-0 z-10 pointer-events-none">
+                <PixelTrail
+                    pixelSize={screenSize.lessThan("md") ? 48 : 64}
+                    fadeDuration={500}
+                    delay={0}
+                    pixelClassName="rounded-full bg-[#ea580c]/20"
+                />
+            </div>
 
-            <div className="flex-1 flex overflow-hidden flex-col md:flex-row relative">
-                <div className="flex-1 p-2 sm:p-4 md:p-6 flex flex-col gap-2 sm:gap-4 relative">
-                    {/* Main Featured View */}
-                    <div className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden">
-                        {featuredTile ? (
-                            (() => {
-                                const participant = participants.find(p => p.userId === featuredTile.userId);
-                                const stream = participant?.streams?.find(s => s.id === featuredTile.streamId);
+            <div className="h-screen w-full flex flex-col overflow-hidden relative z-20" style={{ height: '100dvh', fontFamily: 'Supreme, sans-serif' }}>
+                {/* Local preview (hidden small preview) */}
+                <video ref={localPreviewRef} autoPlay muted playsInline className="hidden" />
 
-                                if (participant && stream) {
-                                    return (
-                                        <div className="relative w-full h-full bg-black" key={`featured-${featuredTile.userId}-${featuredTile.streamId}`}>
-                                            <video
-                                                key={`video-${featuredTile.streamId}`}
-                                                autoPlay
-                                                playsInline
-                                                muted={participant.isLocal}
-                                                ref={el => {
-                                                    if (el && stream) {
-                                                        el.srcObject = stream;
-                                                        el.play().catch(() => { });
-                                                    }
-                                                }}
-                                                onLoadedMetadata={(e) => {
-                                                    const video = e.currentTarget;
-                                                    video.play().catch(() => { });
-                                                }}
-                                                className="w-full h-full object-contain"
-                                            />
-                                            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-                                                <span className="text-lg font-medium text-white tracking-wide">
-                                                    {participant.email}
-                                                    {screenSharers.has(participant.userId) && " (Screen Share)"}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                return (
-                                    <div className="text-white/40 text-center">
-                                        Select a participant to view
-                                    </div>
-                                );
-                            })()
-                        ) : (
-                            <div className="text-white/40 text-center">
-                                {participants.length === 0 ? "Waiting for participants…" : "Click a thumbnail below to view"}
-                            </div>
-                        )}
-                    </div>
+                <div className="flex-1 flex overflow-hidden flex-col md:flex-row relative">
+                    <div className="flex-1 p-4 sm:p-6 md:p-8 flex flex-col gap-6 relative">
+                        {/* Main Featured View */}
+                        <div className="flex-1 flex items-center justify-center bg-white/5 backdrop-blur-3xl rounded-[2.5rem] border border-white/10 overflow-hidden shadow-[0_40px_100px_-20px_rgba(0,0,0,0.6)] group/featured">
+                            {featuredTile ? (
+                                (() => {
+                                    const participant = participants.find(p => p.userId === featuredTile.userId);
+                                    const stream = participant?.streams?.find(s => s.id === featuredTile.streamId);
 
-                    {/* Real-time Transcription Overlay */}
-                    <div className="absolute bottom-32 sm:top-4 sm:bottom-auto left-2 sm:left-4 right-2 sm:right-auto z-50 bg-black/70 p-2 sm:p-4 rounded-lg backdrop-blur-md border border-white/10 max-w-[calc(100%-1rem)] sm:max-w-md pointer-events-auto">
-                        <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                            <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                            <span className="text-white font-medium text-xs sm:text-sm">
-                                {isTranscribing ? "Live Captions" : "Connecting..."}
-                            </span>
-                        </div>
-
-                        {isTranscribing && !transcript && (
-                            <p className="text-white/40 italic text-xs sm:text-sm animate-pulse">
-                                Listening...
-                            </p>
-                        )}
-                        {transcript && (
-                            <p className="text-white/90 text-sm sm:text-lg leading-relaxed font-medium animate-in fade-in slide-in-from-bottom-2 line-clamp-2 sm:line-clamp-none">
-                                "{transcript}"
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Thumbnails Strip */}
-                    <div className="h-20 sm:h-24 md:h-32 flex gap-2 overflow-x-auto pb-2 -webkit-overflow-scrolling-touch">
-                        {participants.map(p => {
-                            // Show all streams for each participant
-                            if (p.streams && p.streams.length > 0) {
-                                return p.streams.map((s, idx) => {
-                                    const isSelected = featuredTile?.userId === p.userId && featuredTile?.streamId === s.id;
-                                    return (
-                                        <div
-                                            key={`${p.userId}-stream-${s.id}`}
-                                            onClick={() => setFeaturedTile({ userId: p.userId, streamId: s.id })}
-                                            className={`relative flex-shrink-0 w-32 sm:w-40 md:w-48 h-full bg-black rounded-lg overflow-hidden cursor-pointer transition-all ${isSelected ? 'ring-2 sm:ring-4 ring-white scale-105' : 'ring-1 sm:ring-2 ring-white/20 hover:ring-white/60'
-                                                }`}
-                                        >
-                                            <video
-                                                autoPlay
-                                                playsInline
-                                                muted={p.isLocal} // Always mute local to avoid echo
-                                                ref={el => attachStreamToVideo(el, s)}
-                                                className={`w-full h-full object-cover`}
-                                            />
-                                            {/* Fallback if camera off but stream exists (rare but possible during toggle) */}
-                                            {p.isCameraOff && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
-                                                    <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-                                                        <span className="text-white/60 text-lg">{p.email?.slice(0, 2).toUpperCase()}</span>
+                                    if (participant && stream) {
+                                        return (
+                                            <div className="relative w-full h-full" key={`featured-${featuredTile.userId}-${featuredTile.streamId}`}>
+                                                <video
+                                                    key={`video-${featuredTile.streamId}`}
+                                                    autoPlay
+                                                    playsInline
+                                                    muted={participant.isLocal}
+                                                    ref={el => {
+                                                        if (el && stream) {
+                                                            el.srcObject = stream;
+                                                            el.play().catch(() => { });
+                                                        }
+                                                    }}
+                                                    className="w-full h-full object-contain transition-transform duration-700 group-hover/featured:scale-[1.01]"
+                                                />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/featured:opacity-100 transition-opacity duration-500" />
+                                                <div className="absolute bottom-8 left-8 right-8 p-1 flex items-center gap-3">
+                                                    <div className="px-6 py-2.5 rounded-full bg-black/40 backdrop-blur-2xl border border-white/10 shadow-2xl">
+                                                        <span className="text-sm font-medium text-white/90 tracking-tight">
+                                                            {participant.email || "Contributor"}
+                                                            {screenSharers.has(participant.userId) && <span className="ml-2 text-[10px] uppercase tracking-widest text-[#ea580c] font-bold">Signal Live</span>}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            )}
-
-                                            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
-                                                <span className="text-xs font-medium text-white tracking-wide block truncate max-w-[80%]">
-                                                    {p.email} {idx > 0 ? "(screen)" : ""}
-                                                </span>
-                                                {p.isMuted && <MicOff size={14} className="text-red-500" />}
-                                                {!p.isMuted && <Mic size={14} className="text-white/60" />}
                                             </div>
+                                        );
+                                    }
+                                    return (
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center animate-pulse">
+                                                <div className="w-2 h-2 rounded-full bg-[#ea580c]" />
+                                            </div>
+                                            <span className="text-[10px] uppercase tracking-[0.4em] text-white/20 font-light">Awaiting focus</span>
                                         </div>
                                     );
-                                });
-                            }
-
-                            // Fallback avatar tile for participants without streams
-                            return (
-                                <div
-                                    key={p.userId}
-                                    onClick={() => {
-                                        // If they have no streams, we can't feature them, but we can still select for future
-                                        if (p.streams && p.streams.length > 0) {
-                                            setFeaturedTile({ userId: p.userId, streamId: p.streams[0].id });
-                                        }
-                                    }}
-                                    className="relative flex-shrink-0 w-32 sm:w-40 md:w-48 h-full bg-gradient-to-br from-zinc-900 to-black rounded-lg overflow-hidden cursor-pointer ring-1 sm:ring-2 ring-white/20 hover:ring-white/60 transition-all"
-                                >
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                                            <span className="text-2xl font-light text-white/80">
-                                                {p.email ? p.email.slice(0, 2).toUpperCase() : p.userId.slice(0, 2).toUpperCase()}
-                                            </span>
-                                        </div>
+                                })()
+                            ) : (
+                                <div className="flex flex-col items-center gap-4 text-center">
+                                    <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                                        <div className="w-8 h-8 rounded-full border border-[#ea580c]/50 animate-ping" />
+                                        <div className="absolute w-2 h-2 rounded-full bg-[#ea580c]" />
                                     </div>
-                                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent flex justify-between items-end">
-                                        <span className="text-xs font-medium text-white tracking-wide block truncate max-w-[80%]">{p.email}</span>
-                                        {p.isMuted ? <MicOff size={14} className="text-red-500" /> : <Mic size={14} className="text-white/60" />}
-                                    </div>
+                                    <h3 className="text-xl font-light text-white/40 tracking-tight">
+                                        {participants.length === 0 ? "Establishing uplink..." : "Select a signal to monitor"}
+                                    </h3>
                                 </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Right Panel */}
-                <div className={`transition-all duration-500 border-l border-white/10 ${isPanelOpen ? "w-full md:w-96" : "w-0"} overflow-hidden fixed md:relative inset-0 md:inset-auto z-50 md:z-auto md:h-full`}>
-                    <div className="w-full md:w-96 h-full bg-black/90 md:bg-black/50 backdrop-blur-xl flex flex-col p-4 sm:p-6">
-                        {/* Mobile: Chat-only view */}
-                        {isMobile ? (
-                            <div className="flex-1 flex flex-col w-full overflow-hidden min-h-0">
-                                {/* Chat Header */}
-                                <div className="flex-none flex items-center justify-between mb-4 pt-2">
-                                    <h2 className="text-white text-lg font-semibold">Chat</h2>
-                                    <span className="text-white/60 text-sm">{participants.length} participants</span>
-                                </div>
-
-                                {/* Chat Messages - Using standard overflow with touch support */}
-                                <div
-                                    className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-2 pb-4 touch-pan-y"
-                                    ref={chatScrollRef}
-                                    style={{ WebkitOverflowScrolling: 'touch' }}
-                                >
-                                    {chatMessages.length === 0 && (
-                                        <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
-                                    )}
-                                    {chatMessages.map((msg, idx) => (
-                                        <div key={idx} className="flex flex-col gap-1">
-                                            <div className="flex items-baseline justify-between">
-                                                <span className="text-xs font-bold text-white/90">{msg.email?.split('@')[0]}</span>
-                                                <span className="text-[10px] text-white/40">
-                                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                            <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words text-left">{msg.text}</div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Chat Input */}
-                                <form onSubmit={handleSendMessage} className="flex-none mt-2 flex gap-2 w-full pb-2">
-                                    <input
-                                        value={chatInput}
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        type="text"
-                                        className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-3 text-base md:text-sm text-white focus:outline-none focus:border-white/30 transition-colors"
-                                        placeholder="Type a message..."
-                                    />
-                                    <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-bold min-w-[70px]">Send</button>
-                                </form>
-                            </div>
-                        ) : (
-                            /* Desktop: Full tabbed interface */
-                            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-                                <TabsList className="bg-black/40 border border-white/10 p-1 flex-shrink-0">
-                                    <TabsTrigger value="transcript" className="text-white data-[state=active]:text-black">Transcript</TabsTrigger>
-                                    <TabsTrigger value="chat" className="text-white data-[state=active]:text-black">Chat</TabsTrigger>
-                                    <TabsTrigger value="whiteboard" className="text-white data-[state=active]:text-black">Whiteboard</TabsTrigger>
-                                    <TabsTrigger value="attendance" className="text-white data-[state=active]:text-black">Attendance</TabsTrigger>
-                                    <TabsTrigger value="polls" className="text-white data-[state=active]:text-black">Polls</TabsTrigger>
-                                </TabsList>
-
-                                <TabsContent value="whiteboard" className="flex-1 mt-6 overflow-hidden min-h-0">
-                                    <div className="h-full bg-white rounded-lg overflow-hidden" style={{ minHeight: '500px' }}>
-                                        <Excalidraw
-                                            theme="light"
-                                            initialData={{
-                                                appState: {
-                                                    viewBackgroundColor: "#ffffff"
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                </TabsContent>
-
-                                <TabsContent value="attendance" className="flex-1 mt-6 overflow-auto min-h-0">
-                                    <div className="space-y-4">
-                                        {participants.map((p, idx) => (
-                                            <div key={idx} className="space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-white text-sm font-medium tracking-wide">{p.email}</span>
-                                                    <span className="text-white/40 text-xs font-mono">Active</span>
-                                                </div>
-                                                <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-white transition-all duration-1000" style={{ width: '100%' }} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </TabsContent>
-
-                                <TabsContent value="chat" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
-                                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={chatScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
-                                        {chatMessages.length === 0 && (
-                                            <div className="text-white/40 text-sm text-center mt-10">No messages yet</div>
-                                        )}
-                                        {chatMessages.map((msg, idx) => (
-                                            <div key={idx} className="flex flex-col gap-1">
-                                                <div className="flex items-baseline justify-between">
-                                                    <span className="text-xs font-bold text-white/90">{msg.email?.split('@')[0]}</span>
-                                                    <span className="text-[10px] text-white/40">
-                                                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
-                                                </div>
-                                                <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words">{msg.text}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <form onSubmit={handleSendMessage} className="mt-4 flex gap-2 flex-shrink-0">
-                                        <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} type="text" className="flex-1 bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-white" placeholder="Type a message..." />
-                                        <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black px-4 py-2 rounded-md text-sm font-medium">Send</button>
-                                    </form>
-                                </TabsContent>
-
-                                <TabsContent value="polls" className="flex-1 mt-6">
-                                    <div className="text-white/60 text-sm">Polls coming soon…</div>
-                                </TabsContent>
-
-                                <TabsContent value="transcript" className="flex-1 mt-6 flex flex-col overflow-hidden min-h-0">
-                                    {/* Live Transcription Status */}
-                                    <div className="flex items-center justify-between gap-3 mb-4 flex-shrink-0">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-3 h-3 rounded-full ${isTranscribing ? 'bg-red-500 animate-pulse' : 'bg-yellow-500 animate-pulse'}`} />
-                                            <span className="text-white text-sm font-medium">
-                                                {isTranscribing ? "Live Transcription" : "Connecting..."}
-                                            </span>
-                                        </div>
-                                        {transcriptHistory.length > 0 && (
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={downloadVTT}
-                                                    className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded-full transition-colors"
-                                                >
-                                                    Download VTT
-                                                </button>
-                                                <button
-                                                    onClick={() => saveTranscriptToDatabase()}
-                                                    className="px-3 py-1 bg-white hover:bg-white/90 text-black text-xs rounded-full transition-colors"
-                                                >
-                                                    Save
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Transcript History */}
-                                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 pb-4 touch-pan-y min-h-0" ref={transcriptScrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
-                                        {transcriptHistory.length === 0 && (
-                                            <div className="text-white/40 text-sm text-center mt-10">
-                                                Listening for voices...
-                                            </div>
-                                        )}
-                                        {transcriptHistory.map((entry, idx) => (
-                                            <div key={idx} className="flex flex-col gap-1">
-                                                <div className="flex items-baseline justify-between">
-                                                    <span className="text-xs font-bold text-white/90">{entry.speaker}</span>
-                                                    <span className="text-[10px] text-white/40">
-                                                        {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </span>
-                                                </div>
-                                                <div className="bg-white/10 rounded-lg p-2 text-sm text-white/90 break-words">{entry.text}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </TabsContent>
-                            </Tabs>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Floating control bar */}
-            <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 z-40">
-                <div className="bg-black/90 backdrop-blur-xl border border-white/20 rounded-full px-2 sm:px-4 py-2 sm:py-3 shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex items-center gap-1.5 sm:gap-3">
-                    <button onClick={toggleMic} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isMuted ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {isMuted ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
-                    </button>
-
-                    <button onClick={toggleCamera} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${isVideoOff ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        {isVideoOff ? <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Video className="w-4 h-4 sm:w-5 sm:h-5" />}
-                    </button>
-
-                    <button onClick={handleScreenShare} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${localScreenRef.current ? 'bg-white text-black' : 'bg-white/10 text-white'}`}>
-                        <MonitorUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-
-                    <button onClick={handleFragmentedRecord} className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${fragmentedRecorder.state.isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-white/10 text-white'}`}>
-                        <Circle className={`w-4 h-4 sm:w-5 sm:h-5 ${fragmentedRecorder.state.isRecording ? 'fill-current' : ''}`} />
-                    </button>
-
-                    {/* Recording timer and upload indicator */}
-                    {fragmentedRecorder.state.isRecording && (
-                        <div className="flex items-center gap-2 bg-red-500/20 px-3 py-1.5 rounded-full">
-                            <span className="text-red-400 text-sm font-mono">{formatTime(recordingTime)}</span>
-                            {fragmentUploader.isUploading && (
-                                <span className="text-blue-400 text-xs">↑{fragmentUploader.progress.uploaded}</span>
                             )}
                         </div>
-                    )}
 
-                    <div className="w-px h-6 sm:h-8 bg-white/10 mx-0.5 sm:mx-1" />
+                        {/* Real-time Transcription Overlay - Minimal startup style */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="absolute bottom-36 left-1/2 -translate-x-1/2 z-[35] w-full max-w-2xl px-8 pointer-events-none"
+                        >
+                            <div className="bg-black/60 backdrop-blur-3xl p-6 rounded-[2rem] border border-white/10 shadow-2xl transition-all duration-500 hover:border-[#ea580c]/30">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${isTranscribing ? 'bg-[#ea580c] shadow-[0_0_12px_#ea580c]' : 'bg-white/20'}`} />
+                                    <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/40">
+                                        Intelligence Engine {isTranscribing ? "Active" : "Standby"}
+                                    </span>
+                                </div>
 
-                    <button className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white text-black flex items-center justify-center">
-                        <PhoneOff className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
+                                {isTranscribing && !transcript && (
+                                    <div className="h-4 w-32 bg-white/5 rounded-full animate-pulse" />
+                                )}
+                                {transcript && (
+                                    <p className="text-white text-base sm:text-lg leading-tight font-light tracking-tight animate-in fade-in slide-in-from-bottom-2">
+                                        {transcript}
+                                    </p>
+                                )}
+                            </div>
+                        </motion.div>
+
+                        {/* Thumbnails Strip - Highly refined */}
+                        <div className="h-28 sm:h-32 md:h-40 flex gap-4 overflow-x-auto pb-6 px-1 scrollbar-hide">
+                            <AnimatePresence mode="popLayout" initial={false}>
+                                {participants.map(p => {
+                                    if (p.streams && p.streams.length > 0) {
+                                        return p.streams.map((s, idx) => {
+                                            const isSelected = featuredTile?.userId === p.userId && featuredTile?.streamId === s.id;
+                                            return (
+                                                <motion.div
+                                                    layout
+                                                    initial={{ opacity: 0, scale: 0.9 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.9 }}
+                                                    key={`${p.userId}-stream-${s.id}`}
+                                                    onClick={() => setFeaturedTile({ userId: p.userId, streamId: s.id })}
+                                                    className={`relative flex-shrink-0 w-40 sm:w-48 md:w-64 h-full bg-white/5 backdrop-blur-md rounded-[1.5rem] overflow-hidden cursor-pointer transition-all duration-500 overflow-hidden ${isSelected ? 'ring-2 ring-[#ea580c] scale-105 shadow-[0_20px_40px_-10px_rgba(234,88,12,0.3)]' : 'border border-white/10 hover:border-white/30'
+                                                        }`}
+                                                >
+                                                    <video
+                                                        autoPlay
+                                                        playsInline
+                                                        muted={p.isLocal}
+                                                        ref={el => attachStreamToVideo(el, s)}
+                                                        className={`w-full h-full object-cover opacity-60 transition-opacity duration-500 hover:opacity-100`}
+                                                    />
+
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+
+                                                    <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-bold text-white/90 tracking-tight truncate max-w-[120px]">
+                                                                {p.email?.split('@')[0]}
+                                                            </span>
+                                                            <span className="text-[8px] uppercase tracking-widest text-[#ea580c] font-medium opacity-80">
+                                                                {idx > 0 ? "Screen" : "Camera"}
+                                                            </span>
+                                                        </div>
+                                                        <div className={`p-1.5 rounded-full ${p.isMuted ? 'bg-[#ea580c]' : 'bg-white/10'} backdrop-blur-md shadow-lg`}>
+                                                            {p.isMuted ? <MicOff size={8} className="text-white" /> : <Mic size={8} className="text-white/60" />}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        });
+                                    }
+
+                                    return (
+                                        <motion.div
+                                            layout
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            key={p.userId}
+                                            className="relative flex-shrink-0 w-40 sm:w-48 md:w-64 h-full bg-white/5 backdrop-blur-md rounded-[1.5rem] border border-white/10 overflow-hidden cursor-pointer hover:bg-white/10 transition-all duration-500"
+                                        >
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center">
+                                                    <span className="text-lg font-light text-white/20 tracking-widest uppercase">
+                                                        {p.email?.slice(0, 2)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
+                                                <span className="text-[9px] uppercase tracking-widest font-bold text-white/40">{p.email?.split('@')[0]}</span>
+                                                <div className={`p-1.5 rounded-full ${p.isMuted ? 'bg-[#ea580c]' : 'bg-white/10'} backdrop-blur-md`}>
+                                                    {p.isMuted ? <MicOff size={8} className="text-white" /> : <Mic size={8} className="text-white/40" />}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+
+                    {/* Right Panel - Startup Style */}
+                    <AnimatePresence>
+                        {isPanelOpen && (
+                            <motion.div
+                                initial={{ x: "100%", opacity: 0 }}
+                                animate={{ x: 0, opacity: 1 }}
+                                exit={{ x: "100%", opacity: 0 }}
+                                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                                className={`fixed md:relative inset-0 md:inset-auto z-50 md:z-auto w-full md:w-[420px] h-full flex flex-col border-l border-white/10 bg-black/40 backdrop-blur-3xl shadow-[-30px_0_80px_rgba(0,0,0,0.8)]`}
+                            >
+                                <div className="flex-1 flex flex-col p-8 sm:p-10 min-h-0">
+                                    <div className="flex items-center justify-between mb-10">
+                                        <h2 className="text-2xl font-light tracking-tight text-white/90">Studio Panel</h2>
+                                        <button onClick={() => setIsPanelOpen(false)} className="p-2.5 rounded-full hover:bg-white/10 transition-all duration-300">
+                                            <X size={18} className="text-white/40 hover:text-white" />
+                                        </button>
+                                    </div>
+
+                                    {isMobile ? (
+                                        <div className="flex-1 flex flex-col w-full overflow-hidden min-h-0">
+                                            <div className="flex-none flex items-center justify-between mb-4">
+                                                <h2 className="text-white/40 text-xs uppercase tracking-widest font-semibold">Live Chat</h2>
+                                                <span className="text-white/20 text-[10px] tracking-widest">{participants.length} CONNS</span>
+                                            </div>
+
+                                            <div
+                                                className="flex-1 overflow-y-auto min-h-0 space-y-6 pr-2 pb-4 touch-pan-y scrollbar-hide"
+                                                ref={chatScrollRef}
+                                                style={{ WebkitOverflowScrolling: 'touch' }}
+                                            >
+                                                {chatMessages.length === 0 && (
+                                                    <div className="text-white/10 text-[10px] uppercase tracking-widest text-center mt-10">No broadcast data</div>
+                                                )}
+                                                {chatMessages.map((msg, idx) => (
+                                                    <div key={idx} className="flex flex-col gap-2">
+                                                        <div className="flex items-baseline justify-between">
+                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">{msg.email?.split('@')[0]}</span>
+                                                            <span className="text-[8px] tracking-widest text-white/20">
+                                                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-light text-white/90 break-words leading-relaxed">{msg.text}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <form onSubmit={handleSendMessage} className="flex-none mt-6 flex gap-3 w-full pb-2">
+                                                <input
+                                                    value={chatInput}
+                                                    onChange={(e) => setChatInput(e.target.value)}
+                                                    type="text"
+                                                    className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-4 text-sm text-white focus:outline-none focus:border-[#ea580c]/50 transition-all placeholder:text-white/20"
+                                                    placeholder="Encrypt signal..."
+                                                />
+                                                <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black w-12 h-12 rounded-full flex items-center justify-center hover:bg-[#ea580c] hover:text-white transition-all disabled:opacity-50">
+                                                    <ArrowRight size={20} />
+                                                </button>
+                                            </form>
+                                        </div>
+                                    ) : (
+                                        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                                            <TabsList className="bg-white/5 border border-white/10 p-1 rounded-full mb-8">
+                                                <TabsTrigger value="transcript" className="rounded-full text-[10px] uppercase tracking-widest font-medium data-[state=active]:bg-white data-[state=active]:text-black text-white/40 transition-all">Transcript</TabsTrigger>
+                                                <TabsTrigger value="chat" className="rounded-full text-[10px] uppercase tracking-widest font-medium data-[state=active]:bg-white data-[state=active]:text-black text-white/40 transition-all">Chat</TabsTrigger>
+                                                <TabsTrigger value="whiteboard" className="rounded-full text-[10px] uppercase tracking-widest font-medium data-[state=active]:bg-white data-[state=active]:text-black text-white/40 transition-all">Annotate</TabsTrigger>
+                                                <TabsTrigger value="attendance" className="rounded-full text-[10px] uppercase tracking-widest font-medium data-[state=active]:bg-white data-[state=active]:text-black text-white/40 transition-all">Users</TabsTrigger>
+                                            </TabsList>
+
+                                            <div className="flex-1 min-h-0">
+                                                <TabsContent value="whiteboard" className="h-full mt-0 overflow-hidden outline-none">
+                                                    <AnnotationBoard />
+                                                </TabsContent>
+
+                                                <TabsContent value="attendance" className="h-full mt-0 overflow-y-auto pr-2 outline-none scrollbar-hide">
+                                                    <div className="space-y-6">
+                                                        {participants.map((p, idx) => (
+                                                            <div key={p.userId} className="group relative bg-white/5 border border-white/5 rounded-2xl p-5 transition-all duration-300 hover:bg-white/10">
+                                                                <div className="flex items-center justify-between mb-4">
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-[#ea580c] transition-colors">
+                                                                            <span className="text-xs font-light text-white/40 uppercase tracking-widest">{p.email?.slice(0, 2)}</span>
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-sm font-medium text-white/90 tracking-tight">{p.email?.split('@')[0]}</span>
+                                                                            <span className="text-[10px] uppercase tracking-widest text-white/20">{p.isLocal ? "Source Admin" : "Connected"}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className={`p-1.5 rounded-full ${p.isMuted ? 'text-[#ea580c]' : 'text-white/20'}`}>
+                                                                        {p.isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="h-0.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                                                    <motion.div
+                                                                        initial={{ width: 0 }}
+                                                                        animate={{ width: '100%' }}
+                                                                        className="h-full bg-[#ea580c]/40"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </TabsContent>
+
+                                                <TabsContent value="chat" className="h-full mt-0 flex flex-col outline-none">
+                                                    <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-4 scrollbar-hide" ref={chatScrollRef}>
+                                                        {chatMessages.length === 0 && (
+                                                            <div className="text-white/10 text-[10px] uppercase tracking-widest text-center mt-20">No broadcast data</div>
+                                                        )}
+                                                        <AnimatePresence initial={false}>
+                                                            {chatMessages.map((msg, idx) => (
+                                                                <motion.div
+                                                                    key={idx}
+                                                                    initial={{ opacity: 0, x: 20 }}
+                                                                    animate={{ opacity: 1, x: 0 }}
+                                                                    className="flex flex-col gap-2"
+                                                                >
+                                                                    <div className="flex items-baseline justify-between transition-all">
+                                                                        <span className="text-[10px] uppercase tracking-widest font-bold text-white/50">{msg.email?.split('@')[0]}</span>
+                                                                        <span className="text-[8px] tracking-widest text-white/20">
+                                                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-light text-white/90 leading-relaxed hover:bg-white/10 transition-colors">{msg.text}</div>
+                                                                </motion.div>
+                                                            ))}
+                                                        </AnimatePresence>
+                                                    </div>
+
+                                                    <form onSubmit={handleSendMessage} className="mt-6 flex gap-3">
+                                                        <input
+                                                            value={chatInput}
+                                                            onChange={(e) => setChatInput(e.target.value)}
+                                                            type="text"
+                                                            className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-4 text-sm text-white focus:outline-none focus:border-[#ea580c]/50 transition-all"
+                                                            placeholder="Broadcast signal..."
+                                                        />
+                                                        <button type="submit" disabled={!chatInput.trim()} className="bg-white text-black w-12 h-12 flex-shrink-0 rounded-full flex items-center justify-center hover:bg-[#ea580c] hover:text-white transition-all disabled:opacity-30">
+                                                            <ArrowRight size={20} />
+                                                        </button>
+                                                    </form>
+                                                </TabsContent>
+
+                                                <TabsContent value="transcript" className="h-full mt-0 flex flex-col outline-none">
+                                                    <div className="flex items-center justify-between mb-8 flex-shrink-0">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-2 h-2 rounded-full ${isTranscribing ? 'bg-[#ea580c] shadow-[0_0_8px_#ea580c]' : 'bg-yellow-500'} animate-pulse`} />
+                                                            <span className="text-[10px] uppercase tracking-widest font-medium text-white/60">
+                                                                {isTranscribing ? "Voice Intel" : "Standby"}
+                                                            </span>
+                                                        </div>
+                                                        {transcriptHistory.length > 0 && (
+                                                            <div className="flex gap-2">
+                                                                <button onClick={downloadVTT} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-all border border-white/10">
+                                                                    <ArrowRight size={14} className="rotate-90" />
+                                                                </button>
+                                                                <button onClick={() => saveTranscriptToDatabase()} className="px-5 py-2 bg-white text-black text-[10px] uppercase font-bold tracking-widest rounded-full hover:bg-[#ea580c] hover:text-white transition-all">
+                                                                    Store
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-4 scrollbar-hide" ref={transcriptScrollRef}>
+                                                        {transcriptHistory.length === 0 && (
+                                                            <div className="text-white/10 text-[10px] uppercase tracking-widest text-center mt-20">Awaiting audio uplink...</div>
+                                                        )}
+                                                        <AnimatePresence initial={false}>
+                                                            {transcriptHistory.map((entry, idx) => (
+                                                                <motion.div
+                                                                    key={idx}
+                                                                    initial={{ opacity: 0, y: 10 }}
+                                                                    animate={{ opacity: 1, y: 0 }}
+                                                                >
+                                                                    <div className="group/entry flex flex-col gap-2">
+                                                                        <div className="flex items-baseline justify-between opacity-40 group-hover/entry:opacity-100 transition-opacity">
+                                                                            <span className="text-[10px] uppercase tracking-widest font-bold text-white/60">{entry.speaker}</span>
+                                                                            <span className="text-[8px] tracking-widest text-white/30">
+                                                                                {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="bg-white/5 border border-white/5 rounded-[2rem] p-5 text-sm font-light text-white/70 leading-relaxed italic hover:bg-white/10 transition-colors">
+                                                                            <span className="text-[#ea580c] mr-2 opacity-50">"</span>
+                                                                            {entry.text}
+                                                                            <span className="text-[#ea580c] ml-2 opacity-50">"</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </motion.div>
+                                                            ))}
+                                                        </AnimatePresence>
+                                                    </div>
+                                                </TabsContent>
+                                            </div>
+                                        </Tabs>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
-            </div>
 
-            {/* Toggle panel */}
-            <button onClick={() => setIsPanelOpen(!isPanelOpen)} className="absolute top-4 right-4 sm:top-6 sm:right-6 w-10 h-10 rounded-full bg-black/80 border border-white/20 text-white flex items-center justify-center z-[60]">
-                <Menu className="w-5 h-5" />
-            </button>
-        </div>
+                {/* Floating control bar - Modern Startup Pill */}
+                <motion.div
+                    initial={{ y: 80, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 1, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                    className="absolute bottom-10 left-1/2 -translate-x-1/2 z-40"
+                >
+                    <div className="bg-black/60 backdrop-blur-3xl border border-white/15 rounded-full px-4 py-3 sm:px-8 sm:py-5 shadow-[0_40px_100px_rgba(0,0,0,0.8)] flex items-center gap-2 sm:gap-6 group/controls">
+                        <button
+                            onClick={toggleMic}
+                            className={`group relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${isMuted ? 'bg-[#ea580c] text-white shadow-[0_0_20px_rgba(234,88,12,0.4)]' : 'bg-white/5 text-white/50 hover:bg-white/15 hover:text-white border border-white/10'}`}
+                        >
+                            {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
+                            <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black text-[8px] uppercase tracking-widest text-white/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">Audio</span>
+                        </button>
+
+                        <button
+                            onClick={toggleCamera}
+                            className={`group relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${isVideoOff ? 'bg-[#ea580c] text-white shadow-[0_0_20px_rgba(234,88,12,0.4)]' : 'bg-white/5 text-white/50 hover:bg-white/15 hover:text-white border border-white/10'}`}
+                        >
+                            {isVideoOff ? <VideoOff size={18} /> : <Video size={18} />}
+                            <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black text-[8px] uppercase tracking-widest text-white/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">Visual</span>
+                        </button>
+
+                        <button
+                            onClick={handleScreenShare}
+                            className={`group relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${localScreenRef.current ? 'bg-[#ea580c] text-white' : 'bg-white/5 text-white/50 hover:bg-white/15 hover:text-white border border-white/10'}`}
+                        >
+                            <MonitorUp size={18} />
+                            <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black text-[8px] uppercase tracking-widest text-white/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">Transmit</span>
+                        </button>
+
+                        <div className="w-px h-10 bg-white/10 mx-2" />
+
+                        <button
+                            onClick={handleFragmentedRecord}
+                            className={`group relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${fragmentedRecorder.state.isRecording ? 'bg-red-500 text-white animate-pulse shadow-[0_0_30px_rgba(239,68,68,0.5)]' : 'bg-white/5 text-white/50 hover:bg-white/15 hover:text-white border border-white/10'}`}
+                        >
+                            <Circle size={18} className={fragmentedRecorder.state.isRecording ? 'fill-current' : ''} />
+                            {fragmentedRecorder.state.isRecording && (
+                                <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-red-500 px-4 py-1.5 rounded-full shadow-2xl">
+                                    <span className="text-[10px] font-bold tracking-[0.2em] text-white uppercase">{formatTime(recordingTime)}</span>
+                                </div>
+                            )}
+                            {!fragmentedRecorder.state.isRecording && (
+                                <span className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1 bg-black text-[8px] uppercase tracking-widest text-white/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Archives</span>
+                            )}
+                        </button>
+
+                        <button className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:bg-[#ea580c] hover:text-white transition-all duration-500 shadow-[0_10px_40px_rgba(255,255,255,0.1)] hover:scale-105 active:scale-95">
+                            <PhoneOff size={18} className="rotate-[135deg]" />
+                        </button>
+
+                        {!isPanelOpen && (
+                            <button onClick={() => setIsPanelOpen(true)} className="w-12 h-12 rounded-full bg-white/5 text-white/40 hover:text-white hover:bg-white/15 border border-white/10 flex items-center justify-center transition-all duration-500">
+                                <Menu size={18} />
+                            </button>
+                        )}
+                    </div>
+                </motion.div>
+            </div>
+        </ShaderBackground>
     );
 }
