@@ -10,23 +10,19 @@
  * - Triggered via API endpoint
  */
 
-const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { createClient } = require('@supabase/supabase-js');
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 
-// S3-compatible client (works with R2, S3, B2)
-const s3Client = new S3Client({
-    region: process.env.S3_REGION || 'auto',
-    endpoint: process.env.S3_ENDPOINT,
-    credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-    },
-});
+// Initialize Supabase client
+const supabase = createClient(
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'lakeside-recordings';
+const BUCKET_NAME = 'recordings';
 
 /**
  * Assemble a recording session
@@ -78,54 +74,51 @@ async function assembleSession(sessionId, participantId) {
 }
 
 /**
- * List fragments for a participant
+ * List fragments for a participant from Supabase Storage
  */
 async function listFragments(sessionId, participantId, trackType) {
-    const prefix = `recordings/${sessionId}/${participantId}/${trackType}/`;
+    const folderPath = `${sessionId}/${participantId}/${trackType}`;
 
-    const command = new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
-        Prefix: prefix,
-    });
+    const { data, error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .list(folderPath, { sortBy: { column: 'name', order: 'asc' } });
 
-    const response = await s3Client.send(command);
-    const contents = response.Contents || [];
+    if (error) {
+        console.error(`[Assembly] Error listing fragments at ${folderPath}:`, error);
+        return [];
+    }
 
-    // Sort by key (chunk_000001.webm, chunk_000002.webm, etc.)
-    return contents
-        .map(obj => obj.Key)
-        .filter(key => key.includes('chunk_'))
-        .sort();
+    // Filter for chunk files and return full paths
+    return (data || [])
+        .filter(file => file.name.includes('chunk_'))
+        .map(file => `${folderPath}/${file.name}`);
 }
 
 /**
- * Download a fragment from S3
+ * Download a fragment from Supabase Storage
  */
-async function downloadFragment(key, destPath) {
-    const command = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key,
-    });
+async function downloadFragment(filePath, destPath) {
+    const { data, error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .download(filePath);
 
-    const response = await s3Client.send(command);
-    const chunks = [];
-
-    for await (const chunk of response.Body) {
-        chunks.push(chunk);
+    if (error) {
+        throw new Error(`Failed to download ${filePath}: ${error.message}`);
     }
 
-    await fs.writeFile(destPath, Buffer.concat(chunks));
+    const buffer = Buffer.from(await data.arrayBuffer());
+    await fs.writeFile(destPath, buffer);
 }
 
 /**
  * Concatenate fragments using FFmpeg
  */
-async function concatenateFragments(fragmentKeys, tempDir, trackType, sessionId) {
+async function concatenateFragments(fragmentPaths, tempDir, trackType, sessionId) {
     // Download all fragments
     const localPaths = [];
-    for (let i = 0; i < fragmentKeys.length; i++) {
+    for (let i = 0; i < fragmentPaths.length; i++) {
         const localPath = path.join(tempDir, `${trackType}_${String(i).padStart(6, '0')}.webm`);
-        await downloadFragment(fragmentKeys[i], localPath);
+        await downloadFragment(fragmentPaths[i], localPath);
         localPaths.push(localPath);
     }
 
@@ -194,25 +187,33 @@ function runFFmpeg(args) {
 }
 
 /**
- * Upload final assembled file
+ * Upload final assembled file to Supabase Storage
  */
 async function uploadFinalFile(localPath, sessionId, participantId, trackType) {
     const extension = path.extname(localPath);
-    const key = `recordings/${sessionId}/${participantId}/final_${trackType}${extension}`;
+    const filePath = `${sessionId}/${participantId}/final_${trackType}${extension}`;
 
     const fileContent = await fs.readFile(localPath);
+    const contentType = trackType === 'video' ? 'video/webm' : 'audio/wav';
 
-    const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key,
-        Body: fileContent,
-        ContentType: trackType === 'video' ? 'video/webm' : 'audio/wav',
-    });
+    const { data, error } = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(filePath, fileContent, {
+            contentType,
+            upsert: true
+        });
 
-    await s3Client.send(command);
+    if (error) {
+        console.error(`[Assembly] Failed to upload ${filePath}:`, error);
+        throw error;
+    }
 
-    // Return public URL (if bucket is public) or just the key
-    return key;
+    // Get public URL for the uploaded file
+    const { data: urlData } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(filePath);
+
+    return urlData?.publicUrl || filePath;
 }
 
 /**

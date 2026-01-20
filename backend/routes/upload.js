@@ -8,6 +8,8 @@
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const authenticateUser = require('../middleware/authMiddleware');
+const { assembleSession } = require('../workers/assemblyWorker');
+const prisma = require('../db/prisma');
 
 const router = express.Router();
 
@@ -90,7 +92,7 @@ router.post('/direct', authenticateUser, async (req, res) => {
  */
 router.post('/complete', authenticateUser, async (req, res) => {
     try {
-        const { sessionId } = req.body;
+        const { sessionId, roomName } = req.body;
         const userId = req.user.id;
 
         if (!sessionId) {
@@ -98,6 +100,36 @@ router.post('/complete', authenticateUser, async (req, res) => {
         }
 
         console.log(`[Upload] Session ${sessionId} marked complete by ${userId}`);
+
+        // Trigger assembly asynchronously (do not await)
+        // In production, this would be a background job
+        assembleSession(sessionId, userId)
+            .then(async (result) => {
+                console.log(`[Assembly] Finished for ${sessionId}:`, result);
+
+                // Save to database
+                // Use videoUrl if available, otherwise audioUrl
+                const finalUrl = result.videoUrl || result.audioUrl;
+
+                if (finalUrl) {
+                    try {
+                        await prisma.recording.create({
+                            data: {
+                                userId: userId,
+                                name: roomName || `Session ${new Date().toLocaleDateString()}`,
+                                videoUrl: finalUrl,
+                                duration: '0:00', // We'd need to extract this from FFmpeg
+                            }
+                        });
+                        console.log(`[Database] Saved recording for ${sessionId}`);
+                    } catch (dbError) {
+                        console.error('[Database] Failed to save recording:', dbError);
+                    }
+                }
+            })
+            .catch(err => {
+                console.error(`[Assembly] Failed for ${sessionId}:`, err);
+            });
 
         res.json({
             ok: true,

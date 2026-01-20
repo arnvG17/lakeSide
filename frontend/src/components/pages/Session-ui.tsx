@@ -1000,6 +1000,31 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
 
             // Wait for uploads to complete
             await fragmentUploader.flushQueue();
+
+            // Notify backend that recording is complete to trigger assembly
+            const sessionId = fragmentedRecorder.state.sessionId;
+            if (sessionId) {
+                try {
+                    const supabase = createClient();
+                    const { data: { session } } = await supabase.auth.getSession();
+
+                    await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/upload/complete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session?.access_token}`,
+                        },
+                        body: JSON.stringify({
+                            sessionId,
+                            roomName: `Room ${roomId}`,
+                        }),
+                    });
+                    console.log(`[Recording] Triggered assembly for session ${sessionId}`);
+                } catch (err) {
+                    console.error('[Recording] Failed to trigger assembly:', err);
+                }
+            }
+
             toast.success(`Recording saved! ${fragmentedRecorder.state.fragmentCount} fragments uploaded.`);
             setRecordingTime(0);
         } else {

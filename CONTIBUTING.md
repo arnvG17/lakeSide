@@ -829,3 +829,91 @@ This architecture matches production systems like:
 ----------------------------------------------------------------
 END OF FILE
 
+
+----------------------------------------------------------------
+# ⭐ APPENDED SECTION: HOW LAKESIDE RECORDINGS WORK (DETAILED)
+----------------------------------------------------------------
+
+Recordings in Lakeside are handled via a **Chunked Upload -> Server Assembly** pipeline. This ensures reliability even with poor connections.
+
+---
+
+## 🏗️ HIGH-LEVEL ARCHITECTURE
+
+```
+┌─────────────┐       1. Upload Chunks       ┌──────────────┐
+│  FRONTEND   │ ───────────────────────────> │   SUPABASE   │
+│ (MediaRec)  │                              │   STORAGE    │
+└─────────────┘                              └──────────────┘
+       │                                            │
+       │ 2. POST /api/upload/complete               │ 3. Download Chunks
+       ▼                                            ▼
+┌─────────────┐       4. FFmpeg Merge        ┌──────────────┐
+│   BACKEND   │ <─────────────────────────── │   ASSEMBLY   │
+│ (Upload RT) │                              │    WORKER    │
+└─────────────┘ ───────────────────────────> └──────────────┘
+       │                                            │
+       │ 5. Save Metadata                           │ 6. Upload Final
+       ▼                                            ▼
+┌─────────────┐                              ┌──────────────┐
+│   PRISMA    │                              │   SUPABASE   │
+│     DB      │                              │   STORAGE    │
+└─────────────┘                              └──────────────┘
+```
+
+---
+
+## 📁 FILE STRUCTURE
+
+### Backend Files
+
+#### 1. `backend/routes/upload.js`
+**Purpose**: Handles the upload lifecycle.
+- `/presign`: Generates signed URLs for uploading individual chunks directly to Supabase.
+- `/complete`: Triggered by frontend when recording finishes. **CRITICAL**: This now triggers the `assembleSession` worker.
+
+#### 2. `backend/workers/assemblyWorker.js`
+**Purpose**: The heavy lifter using FFmpeg.
+- Uses **Supabase Storage API** (not S3) to match the upload routes
+- `assembleSession(sessionId, participantId)`:
+    1. Downloads all valid chunks (`chunk_00001.webm`, etc.) from Supabase
+    2. Merges them using FFmpeg `concat` demuxer
+    3. Uploads the final `final_video.webm` back to Supabase storage
+    4. Returns the final public URL
+
+#### 3. `backend/routes/recordings.js`
+**Purpose**: Listing recordings for the dashboard.
+- Fetches metadata from Supabase Storage folder structure (legacy)
+- **Planned**: Direct fetch from Prisma `Recording` table
+
+---
+
+## 🔄 DETAILED DATA FLOW
+
+### Step 1: Client-Side Recording
+The frontend (`Session-ui.tsx`) uses `MediaRecorder` API.
+- It slices video into **10-second chunks**.
+- Each chunk is uploaded immediately via a presigned URL.
+- This prevents losing the whole recording if the browser crashes.
+
+### Step 2: Completion & Assembly
+When the user stops recording:
+1. Frontend calls `POST /api/upload/complete`.
+2. Backend receives request and **immediately returns 200 OK** (to not block UI).
+3. Backend triggers `assembleSession` asynchronously.
+
+### Step 3: Server-Side Assembly
+The `assemblyWorker.js`:
+1. Creates a temp folder.
+2. Downloads all chunks from Supabase.
+3. Runs `ffmpeg -f concat ... -c copy output.webm`.
+4. Uploads the result.
+5. **Inserts a record into the Prisma `Recording` table.**
+
+---
+
+## ⚠️ CRITICAL NOTES FOR CONTRIBUTORS
+
+- **FFmpeg Requirement**: The backend server MUST have `ffmpeg` installed in the system path.
+- **Async Processing**: Assembly happens in the background. If the server restarts immediately after upload, the assembly might fail. (Future: Move to Redis Queue).
+- **Storage Buckets**: Ensure `recordings` bucket exists in Supabase.
