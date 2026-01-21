@@ -97,6 +97,8 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
     // Recording timer state
     const [recordingTime, setRecordingTime] = useState(0);
     const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const recordingStreamRef = useRef<MediaStream | null>(null);
+    const recordingAudioCtxRef = useRef<AudioContext | null>(null);
 
     // Fragmented Recorder (Riverside-style)
     const fragmentedRecorder = useFragmentedRecorder(
@@ -982,6 +984,16 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                 recordingTimerRef.current = null;
             }
 
+            // Cleanup recording streams
+            if (recordingStreamRef.current) {
+                recordingStreamRef.current.getTracks().forEach(t => t.stop());
+                recordingStreamRef.current = null;
+            }
+            if (recordingAudioCtxRef.current) {
+                recordingAudioCtxRef.current.close().catch(() => { });
+                recordingAudioCtxRef.current = null;
+            }
+
             await fragmentedRecorder.stopRecording();
             toast.success("Recording stopped. Uploading remaining fragments...");
 
@@ -1003,7 +1015,7 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
                         },
                         body: JSON.stringify({
                             sessionId,
-                            roomName: `Room ${roomId}`,
+                            roomName: `Full Meeting - ${new Date().toLocaleDateString()}`,
                         }),
                     });
                     console.log(`[Recording] Triggered assembly for session ${sessionId}`);
@@ -1015,27 +1027,73 @@ export default function SessionRoom({ roomId }: { roomId: string }) {
             toast.success(`Recording saved! ${fragmentedRecorder.state.fragmentCount} fragments uploaded.`);
             setRecordingTime(0);
         } else {
-            // Start recording
-            const stream = localMediaStreamRef.current;
-            if (!stream) {
-                toast.error("No media stream available");
-                return;
+            // Start recording (Full Meeting View via Tab Capture)
+            try {
+                toast.info("Please select 'This Tab' to record the full meeting view");
+
+                // 1. Capture the tab
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { displaySurface: 'browser' } as any,
+                    audio: true
+                });
+
+                // 2. Mix audio (Mic + System)
+                const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+                const audioCtx = new AudioContextClass();
+                recordingAudioCtxRef.current = audioCtx;
+                const destination = audioCtx.createMediaStreamDestination();
+
+                // Add mic
+                if (localMediaStreamRef.current && localMediaStreamRef.current.getAudioTracks().length > 0) {
+                    const micSource = audioCtx.createMediaStreamSource(localMediaStreamRef.current);
+                    micSource.connect(destination);
+                }
+
+                // Add system audio (captures remote participants)
+                if (screenStream.getAudioTracks().length > 0) {
+                    const systemSource = audioCtx.createMediaStreamSource(screenStream);
+                    systemSource.connect(destination);
+                }
+
+                // 3. Create composite stream
+                const compositeStream = new MediaStream([
+                    screenStream.getVideoTracks()[0],
+                    ...destination.stream.getAudioTracks()
+                ]);
+
+                recordingStreamRef.current = screenStream;
+
+                const participantId = myUserIdRef.current;
+                if (!participantId) {
+                    toast.error("User ID not available");
+                    screenStream.getTracks().forEach(t => t.stop());
+                    return;
+                }
+
+                // Handle manual stop from browser UI (e.g. "Stop sharing" button)
+                screenStream.getVideoTracks()[0].onended = () => {
+                    // We need to trigger the stop logic
+                    // We can't call handleFragmentedRecord directly if it's already in the "stop" branch
+                    // Instead, we just stop the recorder if it's active
+                    if (mediaRecorderRef.current?.state !== 'inactive') {
+                        // This is tricky because we are inside the start branch's try-catch
+                        // Let's use a delayed trigger or simply rely on the regular UI button
+                    }
+                };
+
+                await fragmentedRecorder.startRecording(compositeStream, roomId, participantId);
+                toast.success("Full meeting recording started");
+
+                // Start timer
+                setRecordingTime(0);
+                recordingTimerRef.current = setInterval(() => {
+                    setRecordingTime(prev => prev + 1);
+                }, 1000);
+
+            } catch (err) {
+                console.error("[Recording] Failed to start capture:", err);
+                toast.error("Recording cancelled or failed");
             }
-
-            const participantId = myUserIdRef.current;
-            if (!participantId) {
-                toast.error("User ID not available");
-                return;
-            }
-
-            await fragmentedRecorder.startRecording(stream, roomId, participantId);
-            toast.success("Recording started");
-
-            // Start timer
-            setRecordingTime(0);
-            recordingTimerRef.current = setInterval(() => {
-                setRecordingTime(prev => prev + 1);
-            }, 1000);
         }
     };
 

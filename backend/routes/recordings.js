@@ -8,6 +8,8 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const authenticateUser = require('../middleware/authMiddleware');
 
+const prisma = require('../db/prisma');
+
 const router = express.Router();
 
 // Initialize Supabase client
@@ -26,55 +28,134 @@ router.get('/', authenticateUser, async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // List all folders in the bucket (each folder is a session)
-        const { data: sessions, error: listError } = await supabase.storage
+        // 1. Fetch recordings from the database
+        const dbRecordings = await prisma.recording.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // 2. Fetch all folders from storage to check for processing sessions
+        const { data: storageSessions } = await supabase.storage
             .from(BUCKET_NAME)
             .list('', { limit: 100 });
 
-        if (listError) {
-            console.error('[Recordings] List error:', listError);
-            return res.status(500).json({ error: 'Failed to list recordings' });
+        const recordingsList = [];
+        const seenSessionIds = new Set();
+
+        // Process DB recordings first
+        for (const rec of dbRecordings) {
+            // Get a signed URL for the video (valid for 1 hour)
+            let videoUrl = rec.videoUrl;
+            if (videoUrl && videoUrl.includes(BUCKET_NAME)) {
+                // If it's a relative path in storage, get a signed URL
+                const pathParts = videoUrl.split(`${BUCKET_NAME}/`);
+                const relativePath = pathParts.length > 1 ? pathParts[1] : videoUrl;
+
+                const { data: signedData } = await supabase.storage
+                    .from(BUCKET_NAME)
+                    .createSignedUrl(relativePath, 3600);
+                videoUrl = signedData?.signedUrl || videoUrl;
+            }
+
+            recordingsList.push({
+                id: rec.id,
+                sessionId: rec.id, // Fallback for UI
+                roomId: 'Unknown',
+                createdAt: rec.createdAt,
+                name: rec.name,
+                videoUrl: videoUrl,
+                previewUrl: videoUrl,
+                status: 'completed',
+                duration: rec.duration,
+            });
+            // Try to extract sessionId from videoUrl if it follows pattern sessionId/userId/final_...
+            if (rec.videoUrl) {
+                const parts = rec.videoUrl.split('/');
+                if (parts.length > 0) seenSessionIds.add(parts[0]);
+            }
         }
 
-        // Filter sessions that belong to this user (sessions contain userId in their structure)
-        const userRecordings = [];
+        // Add processing sessions from storage that aren't in DB yet
+        for (const session of storageSessions || []) {
+            if (seenSessionIds.has(session.name)) continue;
 
-        for (const session of sessions || []) {
-            // Check if this session folder contains user's recordings
+            const { data: sessionRootFiles } = await supabase.storage
+                .from(BUCKET_NAME)
+                .list(session.name);
+
+            // 1. Check for Multi-View (Grid) video in root
+            const multiView = sessionRootFiles?.find(f => f.name === 'multi_view.webm');
+            if (multiView) {
+                const { data: signedData } = await supabase.storage
+                    .from(BUCKET_NAME)
+                    .createSignedUrl(`${session.name}/multi_view.webm`, 3600);
+
+                recordingsList.push({
+                    sessionId: session.name,
+                    roomId: session.name.split('_')[0],
+                    createdAt: session.created_at || new Date().toISOString(),
+                    name: `Multi-View Recording`,
+                    videoUrl: signedData?.signedUrl,
+                    previewUrl: signedData?.signedUrl,
+                    status: 'completed',
+                });
+                continue;
+            }
+
+            // 2. Check for user-specific fragments or results
             const { data: participants } = await supabase.storage
                 .from(BUCKET_NAME)
                 .list(session.name);
 
-            // Check if user's folder exists in this session
             const userFolder = participants?.find(p => p.name === userId);
 
             if (userFolder) {
-                // Get video fragments count
+                // Check if user has a final video (already assembled)
+                const { data: userFiles } = await supabase.storage
+                    .from(BUCKET_NAME)
+                    .list(`${session.name}/${userId}`);
+
+                const finalVideo = userFiles?.find(f => f.name === 'final_video.webm');
+                if (finalVideo) {
+                    const { data: signedData } = await supabase.storage
+                        .from(BUCKET_NAME)
+                        .createSignedUrl(`${session.name}/${userId}/final_video.webm`, 3600);
+
+                    recordingsList.push({
+                        sessionId: session.name,
+                        roomId: session.name.split('_')[0],
+                        createdAt: session.created_at || new Date().toISOString(),
+                        name: `Meeting Recording`,
+                        videoUrl: signedData?.signedUrl,
+                        previewUrl: signedData?.signedUrl,
+                        status: 'completed',
+                    });
+                    continue;
+                }
+
                 const { data: videoFragments } = await supabase.storage
                     .from(BUCKET_NAME)
                     .list(`${session.name}/${userId}/video`);
 
-                // Get signed URL for first video fragment (preview)
-                let previewUrl = null;
                 if (videoFragments && videoFragments.length > 0) {
+                    // This is a session that is still in fragments
                     const { data: signedData } = await supabase.storage
                         .from(BUCKET_NAME)
                         .createSignedUrl(`${session.name}/${userId}/video/${videoFragments[0].name}`, 3600);
-                    previewUrl = signedData?.signedUrl;
-                }
 
-                userRecordings.push({
-                    sessionId: session.name,
-                    roomId: session.name.split('_')[0], // Extract roomId from sessionId
-                    createdAt: session.created_at || new Date().toISOString(),
-                    fragmentCount: videoFragments?.length || 0,
-                    previewUrl,
-                    status: 'available',
-                });
+                    recordingsList.push({
+                        sessionId: session.name,
+                        roomId: session.name.split('_')[0],
+                        createdAt: session.created_at || new Date().toISOString(),
+                        fragmentCount: videoFragments.length,
+                        previewUrl: signedData?.signedUrl,
+                        status: 'processing',
+                    });
+                }
             }
         }
 
-        res.json({ recordings: userRecordings });
+        res.json({ recordings: recordingsList });
     } catch (error) {
         console.error('[Recordings] Error:', error);
         res.status(500).json({ error: 'Failed to fetch recordings' });

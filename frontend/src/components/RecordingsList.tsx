@@ -9,8 +9,9 @@ interface Recording {
     roomId: string;
     createdAt: string;
     fragmentCount: number;
+    videoUrl?: string;
     previewUrl?: string;
-    status: string;
+    status: 'completed' | 'processing';
 }
 
 export function RecordingsList() {
@@ -141,10 +142,21 @@ export function RecordingsList() {
                                 <Film className="w-12 h-12 text-white/10" />
                             )}
 
-                            {/* Play overlay */}
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                <Play className="w-12 h-12 text-white" />
+                            {/* Status Badge */}
+                            <div className={`absolute top-3 right-3 px-2 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md border ${recording.status === 'completed'
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                    : 'bg-[#ea580c]/20 text-[#ea580c] border-[#ea580c]/30 animate-pulse'
+                                }`}>
+                                {recording.status}
                             </div>
+
+                            {/* Play overlay */}
+                            {recording.status === 'completed' && (
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                                    onClick={() => recording.videoUrl && window.open(recording.videoUrl, '_blank')}>
+                                    <Play className="w-12 h-12 text-white" />
+                                </div>
+                            )}
                         </div>
 
                         {/* Info */}
@@ -159,11 +171,21 @@ export function RecordingsList() {
                             {/* Actions */}
                             <div className="flex items-center gap-2 mt-3">
                                 <button
-                                    onClick={() => setSelectedRecording(recording.sessionId)}
-                                    className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-white/70 hover:text-white transition-all flex items-center justify-center gap-1.5"
+                                    onClick={() => recording.videoUrl && window.open(recording.videoUrl, '_blank')}
+                                    disabled={recording.status !== 'completed'}
+                                    className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-white/70 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
-                                    <Download className="w-3.5 h-3.5" />
-                                    Download
+                                    {recording.status === 'completed' ? (
+                                        <>
+                                            <Play className="w-3.5 h-3.5" />
+                                            Watch
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            Assembling...
+                                        </>
+                                    )}
                                 </button>
                                 <button
                                     onClick={() => handleDelete(recording.sessionId)}
