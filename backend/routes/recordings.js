@@ -44,17 +44,18 @@ router.get('/', authenticateUser, async (req, res) => {
 
         // Process DB recordings first
         for (const rec of dbRecordings) {
-            // Get a signed URL for the video (valid for 1 hour)
+            // Get a proxy URL for the video
             let videoUrl = rec.videoUrl;
             if (videoUrl && videoUrl.includes(BUCKET_NAME)) {
-                // If it's a relative path in storage, get a signed URL
-                const pathParts = videoUrl.split(`${BUCKET_NAME}/`);
-                const relativePath = pathParts.length > 1 ? pathParts[1] : videoUrl;
+                // If it's a relative path in storage: BUCKET_NAME/sessionId/userId/final_...
+                const parts = videoUrl.split('/');
+                // Format: recordings/:sessionId/:userId/:fileName
+                // We assume videoUrl in DB is either a full URL or a path like "session_123/user_456/final_video.webm"
+                const relativePath = videoUrl.includes(`${BUCKET_NAME}/`) ? videoUrl.split(`${BUCKET_NAME}/`)[1] : videoUrl;
 
-                const { data: signedData } = await supabase.storage
-                    .from(BUCKET_NAME)
-                    .createSignedUrl(relativePath, 3600);
-                videoUrl = signedData?.signedUrl || videoUrl;
+                // Construct our internal proxy URL
+                // The frontend will prepend the backend URL if needed
+                videoUrl = `/api/video/stream/${relativePath}`;
             }
 
             recordingsList.push({
@@ -86,17 +87,13 @@ router.get('/', authenticateUser, async (req, res) => {
             // 1. Check for Multi-View (Grid) video in root
             const multiView = sessionRootFiles?.find(f => f.name === 'multi_view.webm');
             if (multiView) {
-                const { data: signedData } = await supabase.storage
-                    .from(BUCKET_NAME)
-                    .createSignedUrl(`${session.name}/multi_view.webm`, 3600);
-
                 recordingsList.push({
                     sessionId: session.name,
                     roomId: session.name.split('_')[0],
                     createdAt: session.created_at || new Date().toISOString(),
                     name: `Multi-View Recording`,
-                    videoUrl: signedData?.signedUrl,
-                    previewUrl: signedData?.signedUrl,
+                    videoUrl: `/api/video/root-stream/${session.name}/multi_view.webm`,
+                    previewUrl: `/api/video/root-stream/${session.name}/multi_view.webm`,
                     status: 'completed',
                 });
                 continue;
@@ -117,17 +114,13 @@ router.get('/', authenticateUser, async (req, res) => {
 
                 const finalVideo = userFiles?.find(f => f.name === 'final_video.webm');
                 if (finalVideo) {
-                    const { data: signedData } = await supabase.storage
-                        .from(BUCKET_NAME)
-                        .createSignedUrl(`${session.name}/${userId}/final_video.webm`, 3600);
-
                     recordingsList.push({
                         sessionId: session.name,
                         roomId: session.name.split('_')[0],
                         createdAt: session.created_at || new Date().toISOString(),
                         name: `Meeting Recording`,
-                        videoUrl: signedData?.signedUrl,
-                        previewUrl: signedData?.signedUrl,
+                        videoUrl: `/api/video/stream/${session.name}/${userId}/final_video.webm`,
+                        previewUrl: `/api/video/stream/${session.name}/${userId}/final_video.webm`,
                         status: 'completed',
                     });
                     continue;
@@ -139,16 +132,12 @@ router.get('/', authenticateUser, async (req, res) => {
 
                 if (videoFragments && videoFragments.length > 0) {
                     // This is a session that is still in fragments
-                    const { data: signedData } = await supabase.storage
-                        .from(BUCKET_NAME)
-                        .createSignedUrl(`${session.name}/${userId}/video/${videoFragments[0].name}`, 3600);
-
                     recordingsList.push({
                         sessionId: session.name,
                         roomId: session.name.split('_')[0],
                         createdAt: session.created_at || new Date().toISOString(),
                         fragmentCount: videoFragments.length,
-                        previewUrl: signedData?.signedUrl,
+                        previewUrl: `/api/video/stream/${session.name}/${userId}/video/${videoFragments[0].name}`,
                         status: 'processing',
                     });
                 }
@@ -180,20 +169,14 @@ router.get('/:sessionId', authenticateUser, async (req, res) => {
             return res.status(500).json({ error: 'Failed to list fragments' });
         }
 
-        // Generate signed URLs for each fragment
+        // Generate proxy URLs for each fragment
         const fragments = [];
         for (const fragment of videoFragments || []) {
-            const { data: signedData } = await supabase.storage
-                .from(BUCKET_NAME)
-                .createSignedUrl(`${sessionId}/${userId}/video/${fragment.name}`, 3600);
-
-            if (signedData) {
-                fragments.push({
-                    name: fragment.name,
-                    url: signedData.signedUrl,
-                    size: fragment.metadata?.size || 0,
-                });
-            }
+            fragments.push({
+                name: fragment.name,
+                url: `/api/video/stream/${sessionId}/${userId}/video/${fragment.name}`,
+                size: fragment.metadata?.size || 0,
+            });
         }
 
         res.json({

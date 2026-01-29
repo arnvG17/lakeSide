@@ -87,3 +87,121 @@ Summary Checklist
  Transport: Tracks added to connection.
  State: pc.ontrack updated React state.
  DOM: srcObject assigned to <video> tag.
+
+# 5. The Recording Pipeline: From Fragments to Final Video
+
+This section details how your application records meetings, handles network instability, and produces a final high-quality video file.
+
+## Architecture Overview
+
+Current web recording is fragile. Browser crashes or network drops can lose the entire file. To fix this, we use a **Fragmented Recording & Upload Strategy**.
+
+1.  **Client-Side**: Split recording into small 5-second chunks (Blobs).
+2.  **Storage**: Save chunks immediately to IndexedDB (prevent data loss).
+3.  **Upload**: Background queue uploads chunks to Supabase Storage.
+4.  **Server-Side**: A worker process downloads all chunks and stitches them together using FFmpeg.
+
+---
+
+## Part 1: Client-Side Capture & Fragmentation
+**File**: `frontend/src/hooks/useFragmentedRecorder.ts`
+
+### The Setup
+We don't just "record". We composite a stream that represents the "Full Meeting View".
+
+1.  **Tab Capture**: We use `navigator.mediaDevices.getDisplayMedia` to capture the entire browser tab.
+2.  **Audio Mixing**: We use the Web Audio API (`AudioContext`) to mix:
+    *   **Mic Input**: The user's local microphone stream.
+    *   **System Audio**: The audio captured from the tab (remote participants).
+
+### The Recorder Loop
+We use the `MediaRecorder` API with a `timeslice` of 5000ms.
+
+```typescript
+// useFragmentedRecorder.ts
+recorder.start(5000); // Trigger 'ondataavailable' every 5 seconds
+
+recorder.ondataavailable = async (event) => {
+    // 1. Receive a 5-second video blob
+    const blob = event.data;
+    
+    // 2. Generate a unique ID (sessionId_trackType_index)
+    const fragmentId = generateFragmentId(sessionId, 'video', index);
+
+    // 3. Save to Local DB (IndexedDB) immediately
+    await saveFragment({
+        id: fragmentId,
+        blob: blob,
+        ...metadata
+    });
+};
+```
+
+## Part 2: Background Upload Queue
+**File**: `frontend/src/hooks/useFragmentUploader.ts`
+
+To prevent blocking the UI, a separate hook manages uploads. It functions like a robust background worker.
+
+1.  **Polling**: Checks IndexedDB every 2 seconds for fragments marked `uploaded: false`.
+2.  **Uploading**: Sends fragments to `backend/routes/upload.js`.
+3.  **Retry Logic**: If an upload fails, it stays in IndexedDB to be retried later.
+
+**Queue Flushing**: When the user clicks "Stop", we call `flushQueue()`, which forces a final upload of all remaining pending fragments before notifying the server.
+
+---
+
+## Part 3: Backend Assembly (The "Stitching")
+**File**: `backend/workers/assemblyWorker.js`
+
+Once the recording ends, the frontend calls `/api/upload/complete`. This triggers the default assembly worker.
+
+### Phase 1: Preparation
+1.  **Download**: The worker lists all files in the session folder on Supabase (`sessionId/userId/video/*`).
+2.  **Local Storage**: It creates a temporary directory (e.g., `/tmp/lakeside-assembly-1234`).
+3.  **Manifest Creation**: FFmpeg needs a list of files to join. We generate a text file (`concat_list.txt`):
+    ```text
+    file 'chunk_000.webm'
+    file 'chunk_001.webm'
+    file 'chunk_002.webm'
+    ...
+    ```
+
+### Phase 2: FFmpeg Concatenation
+We use the FFmpeg `concat` demuxer. This is efficient because it streams the bits directly without re-encoding (copy mode).
+
+**Command**:
+```bash
+ffmpeg -f concat -safe 0 -i concat_list.txt -c copy final_output.webm
+```
+*   `-f concat`: Use fragmentation mode.
+*   `-c copy`: **Crucial**. Copies video/audio streams directly. Zero quality loss, incredibly fast.
+
+### Phase 3: Finalization
+1.  **Upload**: The stitched `final_video.webm` is uploaded back to the session folder.
+2.  **Cleanup**: Temporary files are deleted.
+
+---
+
+## Part 4: Grid Assembly (Legacy Support)
+**File**: `backend/scripts/gridAssemble.js`
+
+For older recordings where we only captured individual faces, we use a more complex FFmpeg filter to create a "Zoom-style" grid.
+
+**The Complexity**: Unlike simple concatenation, this requires **re-encoding** because we are altering the video frames (scaling and positioning).
+
+### The Logic
+1.  **Inputs**: We download `final_video.webm` for every participant.
+2.  **Layout Calculation**:
+    *   2 Users: Split screen (Left/Right).
+    *   4 Users: 2x2 Grid.
+3.  **Filter Graph (`-filter_complex`)**:
+
+**Example (2 Users)**:
+```bash
+"[0:v]scale=640:360[v0]; [1:v]scale=640:360[v1]; [v0][v1]xstack=inputs=2:layout=0_0|640_0[v]"
+```
+*   `scale`: Resize everyone to uniform 640x360.
+*   `xstack`: The magic filter. Stacks inputs horizontally/vertically based on coordinate layout (`0_0` is top-left, `640_0` is top-right).
+*   `amix`: Mixes all audio tracks into one.
+
+This produces a new `multi_view.webm` which is verified and served by the API.

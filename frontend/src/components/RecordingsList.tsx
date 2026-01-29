@@ -89,6 +89,12 @@ export function RecordingsList() {
         });
     };
 
+    const resolveUrl = (url?: string) => {
+        if (!url) return undefined;
+        if (url.startsWith('http')) return url;
+        return `${backendUrl}${url}`;
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -132,7 +138,7 @@ export function RecordingsList() {
                         <div className="aspect-video bg-black/40 relative flex items-center justify-center">
                             {recording.previewUrl ? (
                                 <video
-                                    src={recording.previewUrl}
+                                    src={resolveUrl(recording.previewUrl)}
                                     className="w-full h-full object-cover"
                                     muted
                                     onMouseEnter={(e) => e.currentTarget.play()}
@@ -144,8 +150,8 @@ export function RecordingsList() {
 
                             {/* Status Badge */}
                             <div className={`absolute top-3 right-3 px-2 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest backdrop-blur-md border ${recording.status === 'completed'
-                                    ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                                    : 'bg-[#ea580c]/20 text-[#ea580c] border-[#ea580c]/30 animate-pulse'
+                                ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                : 'bg-[#ea580c]/20 text-[#ea580c] border-[#ea580c]/30 animate-pulse'
                                 }`}>
                                 {recording.status}
                             </div>
@@ -153,7 +159,7 @@ export function RecordingsList() {
                             {/* Play overlay */}
                             {recording.status === 'completed' && (
                                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
-                                    onClick={() => recording.videoUrl && window.open(recording.videoUrl, '_blank')}>
+                                    onClick={() => recording.videoUrl && window.open(resolveUrl(recording.videoUrl), '_blank')}>
                                     <Play className="w-12 h-12 text-white" />
                                 </div>
                             )}
@@ -171,7 +177,7 @@ export function RecordingsList() {
                             {/* Actions */}
                             <div className="flex items-center gap-2 mt-3">
                                 <button
-                                    onClick={() => recording.videoUrl && window.open(recording.videoUrl, '_blank')}
+                                    onClick={() => recording.videoUrl && window.open(resolveUrl(recording.videoUrl), '_blank')}
                                     disabled={recording.status !== 'completed'}
                                     className="flex-1 py-2 px-3 bg-white/5 hover:bg-white/10 rounded-lg text-xs text-white/70 hover:text-white transition-all flex items-center justify-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
